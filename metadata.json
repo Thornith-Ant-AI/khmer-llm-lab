@@ -1,0 +1,6 @@
+{
+  "name": "Khmer LLM Architect & Pretraining Lab",
+  "description": "Comprehensive engineering roadmap, high-priority dataset curation hierarchy, tokenizer benchmark, and compute scaling calculator for training a Khmer Large Language Model from scratch.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
