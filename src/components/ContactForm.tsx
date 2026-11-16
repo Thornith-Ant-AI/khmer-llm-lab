@@ -10,7 +10,13 @@ import {
   Building2,
   User,
   MessageSquare,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Phone,
+  Globe,
+  ExternalLink,
+  Copy,
+  Check,
+  GraduationCap
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -71,6 +77,18 @@ export const ContactForm: React.FC = () => {
 
   const [searchFilter, setSearchFilter] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
+  const [photoLoadError, setPhotoLoadError] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
+
+  const handleCopyPhone = async () => {
+    try {
+      await navigator.clipboard.writeText('+855 86 945 554');
+      setCopiedPhone(true);
+      window.setTimeout(() => setCopiedPhone(false), 2000);
+    } catch {
+      // Ignore clipboard errors in restricted environments
+    }
+  };
 
   useEffect(() => {
     try {
@@ -256,6 +274,126 @@ export const ContactForm: React.FC = () => {
           )}
         </p>
       </div>
+
+      {/* Research By Section */}
+      <section
+        aria-labelledby="research-by-heading"
+        className="p-6 rounded-2xl border border-slate-800 bg-slate-900/50"
+      >
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          {/* Researcher LinkedIn Portrait with Graceful Fallback */}
+          <div className="shrink-0">
+            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl border border-slate-700/80 bg-slate-950 overflow-hidden flex items-center justify-center">
+              {!photoLoadError ? (
+                <img
+                  src="/api/researcher-photo"
+                  alt="Mr. HUON THORNITH — Researcher Portrait"
+                  referrerPolicy="no-referrer"
+                  onError={() => setPhotoLoadError(true)}
+                  className="w-full h-full object-cover object-top"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-amber-950/40 flex flex-col items-center justify-center gap-1 text-center p-2">
+                  <span className="text-xl font-bold tracking-wider text-amber-400 font-mono">HT</span>
+                  <span className="text-[10px] text-slate-400 font-mono">LinkedIn</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Researcher Bio & Direct Contact Channels */}
+          <div className="flex-1 min-w-0 space-y-3">
+            <div className="space-y-1">
+              <div
+                className={`flex flex-wrap items-center gap-2 text-xs font-semibold text-amber-400 ${
+                  isKm ? 'font-khmer' : 'font-mono uppercase tracking-wider'
+                }`}
+              >
+                <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+                <span>{tr('RESEARCH BY', 'ស្រាវជ្រាវដោយ')}</span>
+                <span aria-hidden="true" className="text-slate-600">
+                  ·
+                </span>
+                <span className="text-slate-400 normal-case font-normal">
+                  {tr('Principal Researcher & Systems Architect', 'អ្នកស្រាវជ្រាវចម្បង និងស្ថាបត្យករប្រព័ន្ធ')}
+                </span>
+              </div>
+
+              <h3
+                id="research-by-heading"
+                className="text-xl sm:text-2xl font-bold text-white tracking-tight"
+              >
+                Mr. HUON THORNITH
+              </h3>
+
+              <p className={`text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl ${isKm ? 'font-khmer' : ''}`}>
+                {tr(
+                  'Khmer NLP & Large Language Model pretraining research lead focusing on Unicode script integrity, syllable-aware tokenization, and sovereign Cambodian AI compute engineering.',
+                  'អ្នកដឹកនាំការស្រាវជ្រាវ Khmer NLP និងការបណ្តុះបណ្តាលម៉ូដែលភាសាធំ (LLM) ដោយផ្តោតលើស្តង់ដារ Unicode ខ្មែរ ការបំបែកព្យាង្គ និងវិស្វកម្មហេដ្ឋារចនាសម្ព័ន្ធ AI សម្រាប់កម្ពុជា។'
+                )}
+              </p>
+            </div>
+
+            {/* Direct Contact Channels Row */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              <div className="inline-flex items-center rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
+                <a
+                  href="tel:+85586945554"
+                  className="px-3 py-2 text-xs font-mono tabular-nums text-slate-200 hover:text-amber-300 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+                >
+                  <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>+855 86 945 554</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={handleCopyPhone}
+                  aria-label={tr('Copy researcher phone number', 'ចម្លងលេខទូរស័ព្ទអ្នកស្រាវជ្រាវ')}
+                  className="px-2.5 py-2 border-l border-slate-800 text-slate-400 hover:text-white hover:bg-slate-900 transition-colors shrink-0"
+                >
+                  {copiedPhone ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+
+              <a
+                href="https://www.linkedin.com/in/thornithhuon"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-xs font-mono text-slate-200 hover:text-sky-300 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+              >
+                <span className="font-bold text-sky-400">in</span>
+                <span>LinkedIn</span>
+                <ExternalLink className="w-3 h-3 text-slate-500 shrink-0" />
+              </a>
+
+              <a
+                href="https://t.me/thornithhuon"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-xs font-mono text-slate-200 hover:text-cyan-300 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+              >
+                <Send className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span>Telegram (@thornithhuon)</span>
+                <ExternalLink className="w-3 h-3 text-slate-500 shrink-0" />
+              </a>
+
+              <a
+                href="https://thornith.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-400/50 text-xs font-mono text-slate-200 hover:text-amber-300 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+              >
+                <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>thornith.com</span>
+                <ExternalLink className="w-3 h-3 text-slate-500 shrink-0" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Main 2-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

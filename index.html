@@ -3,12 +3,125 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Khmer LLM Pretraining & Corpus Engineering Lab</title>
-    <meta name="description" content="Architectural blueprint, high-priority data curation hierarchy, tokenizer benchmark, and compute scaling calculator for training a Khmer Large Language Model from scratch." />
-    <meta property="og:title" content="Khmer LLM Pretraining & Corpus Engineering Lab" />
-    <meta property="og:description" content="Architectural blueprint, high-priority data curation hierarchy, tokenizer benchmark, and compute scaling calculator for training a Khmer Large Language Model from scratch." />
+    <title>Khmer LLM Architect &amp; Pretraining Lab</title>
+    <meta
+      name="description"
+      content="Engineering roadmap, Khmer corpus curation matrix, syllable tokenizer lab, GPU scaling calculator, and open-source Khmer LLM directory in English and Khmer."
+    />
+    <meta
+      name="keywords"
+      content="Khmer LLM, Khmer Large Language Model, Khmer NLP, Khmer Tokenizer, SentencePiece Khmer, Khmer Corpus Cleaning, Open Source Khmer AI, ភាសាខ្មែរ LLM, ម៉ូដែលភាសាខ្មែរ, បញ្ញាសិប្បនិម្មិតខ្មែរ, ថូខិនណាយស័រខ្មែរ"
+    />
+    <meta name="author" content="Khmer LLM Architect &amp; Pretraining Lab" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="theme-color" content="#020617" />
+
+    <!-- Bilingual Canonical & Alternate Links Fallback (Skipped if SSR already emitted canonical) -->
+    <script>
+      (function () {
+        if (document.querySelector('link[rel="canonical"]')) return;
+        var origin = window.location.origin || '';
+        var path = window.location.pathname || '/';
+        var base = origin + path;
+        var links = [
+          { rel: 'canonical', href: base },
+          { rel: 'alternate', hreflang: 'en', href: base + '?lang=en' },
+          { rel: 'alternate', hreflang: 'km', href: base + '?lang=km' },
+          { rel: 'alternate', hreflang: 'x-default', href: base }
+        ];
+        links.forEach(function (cfg) {
+          var el = document.createElement('link');
+          el.rel = cfg.rel;
+          if (cfg.hreflang) el.hreflang = cfg.hreflang;
+          el.href = cfg.href;
+          document.head.appendChild(el);
+        });
+      })();
+    </script>
+
+    <!-- SSR_SOCIAL_META_START -->
+    <!-- OpenGraph Bilingual Social Cards (1200x630 Featured Home Screen Preview) -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Khmer LLM Architect &amp; Pretraining Lab" />
+    <meta property="og:title" content="Khmer LLM Architect &amp; Pretraining Lab" />
+    <meta
+      property="og:description"
+      content="Engineering roadmap, 4-tier Khmer corpus matrix, Coeng &amp; scriptio continua tokenizer lab, Chinchilla GPU scaling calculator, and open-source Khmer LLM directory."
+    />
+    <meta property="og:image" content="/og-khmer-llm.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Khmer LLM Architect &amp; Pretraining Lab home screen featuring 4.2x token compression, 30B-60B pretrain target, 1.5B-3B GQA architecture, and transformer attention diagram"
+    />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="km_KH" />
+
+    <!-- Twitter / X Social Cards -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Khmer LLM Architect &amp; Pretraining Lab" />
+    <meta
+      name="twitter:description"
+      content="Engineering roadmap, 4-tier Khmer corpus matrix, Coeng &amp; scriptio continua tokenizer lab, Chinchilla GPU scaling calculator, and open-source Khmer LLM directory."
+    />
+    <meta name="twitter:image" content="/og-khmer-llm.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="Khmer LLM Architect &amp; Pretraining Lab home screen featuring 4.2x token compression, 30B-60B pretrain target, 1.5B-3B GQA architecture, and transformer attention diagram"
+    />
+    <!-- SSR_SOCIAL_META_END -->
+
+    <!-- Schema.org Structured Data (Khmer LLM Engineering & Research) -->
+    <script id="khmer-llm-schema" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Khmer LLM Architect & Pretraining Lab",
+            "alternateName": "មន្ទីរពិសោធន៍វិស្វកម្ម Khmer LLM",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "All",
+            "inLanguage": ["en", "km"],
+            "availableLanguage": [
+              { "@type": "Language", "name": "English", "alternateName": "en" },
+              { "@type": "Language", "name": "Khmer", "alternateName": "km" }
+            ],
+            "description": "Engineering roadmap, Khmer corpus curation matrix, syllable tokenizer lab, GPU scaling calculator, and open-source Khmer LLM directory in English and Khmer.",
+            "keywords": "Khmer LLM, Khmer NLP, Khmer SentencePiece Tokenizer, Khmer Corpus Cleaning, Open-Source Khmer LLMs, ម៉ូដែលភាសាខ្មែរ",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Why do standard Western LLMs struggle with Khmer text?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Khmer uses scriptio continua without inter-word spaces and stacks subscript Coeng consonants, causing Western byte-fallback tokenizers to fragment Khmer into excessive tokens. A Khmer-optimized SentencePiece BPE tokenizer achieves 4.2x better token compression."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "តើទិន្នន័យអ្វីខ្លះដែលល្អបំផុតសម្រាប់បង្វឹក Khmer LLM ពីដំបូង?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "ស្តង់ដារបង្វឹក Khmer LLM ល្អបំផុតផ្អែកលើឋានានុក្រមទិន្នន័យ ៤ កម្រិត៖ កម្រិត ១ អក្សរសិល្ប៍ពុទ្ធសាសនបណ្ឌិត្យ និងច្បាប់ជាតិ កម្រិត ២ សព្វវចនាធិប្បាយ និងអប់រំ កម្រិត ៣ ព័ត៌មានវេបដែលច្រោះ Limon និងសាររំខានរួច និងកម្រិត ៤ ទិន្នន័យសំយោគ SFT។"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">

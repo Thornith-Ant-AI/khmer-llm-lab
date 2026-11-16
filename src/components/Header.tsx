@@ -1,14 +1,15 @@
 import React from 'react';
-import { Download, Globe } from 'lucide-react';
+import { Download, Globe, Share2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onExport: () => void;
+  onShare: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onExport }) => {
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onExport, onShare }) => {
   const { language, setLanguage, tr } = useLanguage();
 
   const navItems = [
@@ -20,7 +21,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onExpor
     { id: 'registers', label: tr('Linguistic Registers', 'កម្រិតភាសា') },
     { id: 'synthetic', label: tr('Synthetic Studio', 'ស្ទូឌីយោសំយោគ') },
     { id: 'research-library', label: tr('Research Library', 'បណ្ណាល័យស្រាវជ្រាវ') },
+    { id: 'models-directory', label: tr('Khmer LLMs & Git', 'ម៉ូដែល LLM & Git') },
     { id: 'training-dynamics', label: tr('Training Dynamics', 'ថាមវន្តបង្វឹក') },
+    { id: 'nlp-glossary', label: tr('NLP Glossary', 'សទ្ទានុក្រម NLP') },
     { id: 'contact', label: tr('Contact', 'ទំនាក់ទំនង') },
   ];
 
@@ -96,6 +99,16 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onExpor
               ខ្មែរ
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={onShare}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            title={tr('Preview & share on Facebook, LinkedIn, Telegram', 'មើលទម្រង់ចែករំលែកលើ Facebook, LinkedIn, Telegram')}
+          >
+            <Share2 className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">{tr('Share Preview', 'ចែករំលែក')}</span>
+          </button>
 
           <button
             onClick={onExport}

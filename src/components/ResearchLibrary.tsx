@@ -17,11 +17,16 @@ import {
   RotateCcw,
   CheckCircle2,
   Bookmark,
+  BookmarkCheck,
+  Clock,
   Circle,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 
 import { useLanguage } from '../contexts/LanguageContext';
+import { ResearchDownloadables, DOWNLOADABLE_ARTIFACTS } from './ResearchDownloadables';
+import { SavedResourcesSection } from './SavedResourcesSection';
 
 export type ResourceCategory =
   | 'all'
@@ -35,6 +40,7 @@ export type ReadingStatus = 'read' | 'to-review';
 export type StatusFilter = 'all' | ReadingStatus | 'unread';
 
 const PROGRESS_STORAGE_KEY = 'khmer_llm_research_progress';
+const SAVED_RESOURCES_STORAGE_KEY = 'khmer_llm_saved_resources';
 
 function loadSavedProgress(): Record<string, ReadingStatus> {
   try {
@@ -51,6 +57,39 @@ function loadSavedProgress(): Record<string, ReadingStatus> {
     return valid;
   } catch {
     return {};
+  }
+}
+
+function loadSavedResourceKeys(
+  validResearchIds: Set<string>,
+  validArtifactIds: Set<string>
+): string[] {
+  try {
+    const raw = localStorage.getItem(SAVED_RESOURCES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const entry of parsed) {
+      if (typeof entry !== 'string' || seen.has(entry)) continue;
+      if (entry.startsWith('artifact:')) {
+        const id = entry.slice('artifact:'.length);
+        if (validArtifactIds.has(id)) {
+          seen.add(entry);
+          unique.push(entry);
+        }
+      } else if (entry.startsWith('research:')) {
+        const id = entry.slice('research:'.length);
+        if (validResearchIds.has(id)) {
+          seen.add(entry);
+          unique.push(entry);
+        }
+      }
+    }
+    return unique;
+  } catch {
+    return [];
   }
 }
 
@@ -385,6 +424,12 @@ export const ResearchLibrary: React.FC = () => {
     loadSavedProgress()
   );
   const [confirmClearProgress, setConfirmClearProgress] = useState<boolean>(false);
+  const [savedResourceKeys, setSavedResourceKeys] = useState<string[]>(() =>
+    loadSavedResourceKeys(
+      new Set(RESEARCH_ITEMS.map((item) => item.id)),
+      new Set(DOWNLOADABLE_ARTIFACTS.map((artifact) => artifact.id))
+    )
+  );
 
   useEffect(() => {
     try {
@@ -393,6 +438,48 @@ export const ResearchLibrary: React.FC = () => {
       // Ignore storage quota or private-mode errors gracefully
     }
   }, [progressMap]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SAVED_RESOURCES_STORAGE_KEY, JSON.stringify(savedResourceKeys));
+    } catch {
+      // Ignore storage quota or private-mode errors gracefully
+    }
+  }, [savedResourceKeys]);
+
+  const savedKeySet = useMemo(() => new Set(savedResourceKeys), [savedResourceKeys]);
+
+  const savedArtifactIds = useMemo(
+    () =>
+      savedResourceKeys
+        .filter((key) => key.startsWith('artifact:'))
+        .map((key) => key.slice('artifact:'.length)),
+    [savedResourceKeys]
+  );
+
+  const toggleSavedKey = (qualifiedKey: string) => {
+    setSavedResourceKeys((prev) =>
+      prev.includes(qualifiedKey)
+        ? prev.filter((k) => k !== qualifiedKey)
+        : [qualifiedKey, ...prev]
+    );
+  };
+
+  const toggleResearchBookmark = (researchId: string) => {
+    toggleSavedKey(`research:${researchId}`);
+  };
+
+  const toggleArtifactBookmark = (artifactId: string) => {
+    toggleSavedKey(`artifact:${artifactId}`);
+  };
+
+  const handleRemoveSavedKey = (qualifiedKey: string) => {
+    setSavedResourceKeys((prev) => prev.filter((k) => k !== qualifiedKey));
+  };
+
+  const handleClearAllSaved = () => {
+    setSavedResourceKeys([]);
+  };
 
   const progressStats = useMemo(() => {
     let readCount = 0;
@@ -621,22 +708,62 @@ export const ResearchLibrary: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="space-y-2">
-        <div className={`inline-flex items-center gap-2 text-xs font-semibold text-amber-400 tracking-wider ${isKm ? 'font-khmer' : 'uppercase font-mono'}`}>
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>{tr('KHMER LLM BIBLIOGRAPHY & CORPUS REPOSITORY', 'បណ្ណាល័យឯកសារស្រាវជ្រាវ និងឃ្លាំងទិន្នន័យ LLM ខ្មែរ')}</span>
-          <span aria-hidden="true" className="text-slate-600">·</span>
-          <span>{tr('PEER-REVIEWED SPECIFICATIONS', 'លក្ខណៈបច្ចេកទេសត្រួតពិនិត្យផ្លូវការ')}</span>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-2">
+          <div className={`inline-flex items-center gap-2 text-xs font-semibold text-amber-400 tracking-wider ${isKm ? 'font-khmer' : 'uppercase font-mono'}`}>
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>{tr('KHMER LLM BIBLIOGRAPHY & CORPUS REPOSITORY', 'បណ្ណាល័យឯកសារស្រាវជ្រាវ និងឃ្លាំងទិន្នន័យ LLM ខ្មែរ')}</span>
+            <span aria-hidden="true" className="text-slate-600">·</span>
+            <span>{tr('PEER-REVIEWED SPECIFICATIONS', 'លក្ខណៈបច្ចេកទេសត្រួតពិនិត្យផ្លូវការ')}</span>
+          </div>
+          <h2 className={`text-2xl sm:text-3xl font-bold text-white tracking-tight ${isKm ? 'font-khmer' : ''}`}>
+            {tr('Research Library & Linguistic Standards', 'បណ្ណាល័យស្រាវជ្រាវ និងស្ដង់ដារភាសាវិទ្យា')}
+          </h2>
+          <p className={`text-sm text-slate-300 max-w-3xl leading-relaxed ${isKm ? 'font-khmer' : ''}`}>
+            {tr(
+              'Curated corpus of peer-reviewed research papers on low-resource language modeling, authoritative Unicode Consortium Khmer specifications, Royal Academy orthographic standards, and open-source NLP segmenters.',
+              'បណ្ដុំឯកសារស្រាវជ្រាវផ្នែកគំរូភាសាធនធានទាប ស្ដង់ដារអក្សរខ្មែរផ្លូវការរបស់ Unicode Consortium ក្បួនអក្ខរាវិរុទ្ធនៃរាជបណ្ឌិត្យសភាកម្ពុជា និងឧបករណ៍កាត់ពាក្យ NLP បើកចំហ។'
+            )}
+          </p>
         </div>
-        <h2 className={`text-2xl sm:text-3xl font-bold text-white tracking-tight ${isKm ? 'font-khmer' : ''}`}>
-          {tr('Research Library & Linguistic Standards', 'បណ្ណាល័យស្រាវជ្រាវ និងស្ដង់ដារភាសាវិទ្យា')}
-        </h2>
-        <p className={`text-sm text-slate-300 max-w-3xl leading-relaxed ${isKm ? 'font-khmer' : ''}`}>
-          {tr(
-            'Curated corpus of peer-reviewed research papers on low-resource language modeling, authoritative Unicode Consortium Khmer specifications, Royal Academy orthographic standards, and open-source NLP segmenters.',
-            'បណ្ដុំឯកសារស្រាវជ្រាវផ្នែកគំរូភាសាធនធានទាប ស្ដង់ដារអក្សរខ្មែរផ្លូវការរបស់ Unicode Consortium ក្បួនអក្ខរាវិរុទ្ធនៃរាជបណ្ឌិត្យសភាកម្ពុជា និងឧបករណ៍កាត់ពាក្យ NLP បើកចំហ។'
-          )}
-        </p>
+
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById('my-saved-resources')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 ${
+              isKm ? 'font-khmer' : 'font-mono'
+            } ${
+              savedResourceKeys.length > 0
+                ? 'bg-slate-900 border-amber-400/50 text-amber-300 hover:bg-slate-800'
+                : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-600 hover:text-white'
+            }`}
+          >
+            <BookmarkCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>{tr('My Saved Resources', 'ធនធានដែលបានរក្សាទុក')}</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono tabular-nums bg-slate-950 text-amber-300">
+              {savedResourceKeys.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById('research-downloadables')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-400/15 text-amber-300 border border-amber-400/40 hover:bg-amber-400 hover:text-slate-950 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 ${
+              isKm ? 'font-khmer' : 'font-mono'
+            }`}
+          >
+            <Download className="w-3.5 h-3.5 shrink-0" />
+            <span>{tr('Downloadables Starter Kit', 'ផ្នែកទាញយកឯកសារចាប់ផ្ដើម')}</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono tabular-nums bg-slate-950 text-amber-300">
+              {DOWNLOADABLE_ARTIFACTS.length}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Researcher Reading Progress Tracker */}
@@ -743,7 +870,7 @@ export const ResearchLibrary: React.FC = () => {
                 id: 'to-review',
                 label: tr('To Review', 'ត្រូវពិនិត្យឡើងវិញ'),
                 count: progressStats.toReviewCount,
-                icon: Bookmark,
+                icon: Clock,
                 activeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/60 font-bold',
                 badgeClass: 'bg-cyan-950 text-cyan-300'
               },
@@ -981,15 +1108,18 @@ export const ResearchLibrary: React.FC = () => {
       </div>
 
       {/* Grid of Resource Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div id="research-cards-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredItems.map((item) => {
           const itemStatus = progressMap[item.id];
+          const isBookmarked = savedKeySet.has(`research:${item.id}`);
           const cardBorderClass =
             itemStatus === 'read'
               ? 'border-emerald-500/40 bg-slate-900/50 hover:border-emerald-400/60'
               : itemStatus === 'to-review'
                 ? 'border-cyan-500/40 bg-slate-900/50 hover:border-cyan-400/60'
-                : 'border-slate-800 bg-slate-900/40 hover:border-slate-700';
+                : isBookmarked
+                  ? 'border-amber-400/45 bg-slate-900/50 hover:border-amber-400/70'
+                  : 'border-slate-800 bg-slate-900/40 hover:border-slate-700';
 
           return (
             <div
@@ -1018,8 +1148,18 @@ export const ResearchLibrary: React.FC = () => {
                           isKm ? 'font-khmer' : 'font-mono'
                         }`}
                       >
-                        <Bookmark className="w-2.5 h-2.5 text-cyan-400" />
+                        <Clock className="w-2.5 h-2.5 text-cyan-400" />
                         <span>{tr('TO REVIEW', 'ត្រូវពិនិត្យ')}</span>
+                      </span>
+                    )}
+                    {isBookmarked && (
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950 text-amber-300 border border-amber-700/80 flex items-center gap-1 ${
+                          isKm ? 'font-khmer' : 'font-mono'
+                        }`}
+                      >
+                        <BookmarkCheck className="w-2.5 h-2.5 text-amber-400" />
+                        <span>{tr('SAVED', 'បានរក្សាទុក')}</span>
                       </span>
                     )}
                   </div>
@@ -1116,11 +1256,33 @@ export const ResearchLibrary: React.FC = () => {
                       : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-cyan-300 hover:border-cyan-500/40'
                   }`}
                 >
-                  <Bookmark className="w-3.5 h-3.5 shrink-0" />
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
                   <span>
                     {itemStatus === 'to-review'
                       ? tr('In Review Queue', 'កំពុងរង់ចាំពិនិត្យ')
                       : tr('To Review', 'ត្រូវពិនិត្យឡើងវិញ')}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  aria-pressed={isBookmarked}
+                  onClick={() => toggleResearchBookmark(item.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border transition-colors whitespace-nowrap ml-auto ${
+                    isKm ? 'font-khmer' : 'font-mono'
+                  } ${
+                    isBookmarked
+                      ? 'bg-amber-400/15 text-amber-300 border-amber-400/60 font-bold hover:bg-amber-400/25'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-amber-300 hover:border-amber-400/40'
+                  }`}
+                >
+                  {isBookmarked ? (
+                    <BookmarkCheck className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  ) : (
+                    <Bookmark className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  <span>
+                    {isBookmarked ? tr('Bookmarked', 'បានរក្សាទុក') : tr('Bookmark', 'រក្សាទុក')}
                   </span>
                 </button>
               </div>
@@ -1191,6 +1353,30 @@ export const ResearchLibrary: React.FC = () => {
           </button>
         </div>
       )}
+      {/* My Saved Resources Sub-Section */}
+      <SavedResourcesSection
+        savedKeys={savedResourceKeys}
+        researchItems={RESEARCH_ITEMS}
+        downloadableArtifacts={DOWNLOADABLE_ARTIFACTS}
+        onRemoveSaved={handleRemoveSavedKey}
+        onClearAllSaved={handleClearAllSaved}
+        onJumpToCorpora={() => {
+          setSelectedCategory('corpora');
+          setSelectedStatus('all');
+          setSelectedTag(null);
+          setSearchQuery('');
+          document.getElementById('research-cards-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
+        onJumpToDownloadables={() => {
+          document.getElementById('research-downloadables')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
+      />
+
+      {/* Downloadables: Starter Datasets, Tokenizer Configs & Model YAMLs */}
+      <ResearchDownloadables
+        savedIds={savedArtifactIds}
+        onToggleBookmark={toggleArtifactBookmark}
+      />
     </div>
   );
 };

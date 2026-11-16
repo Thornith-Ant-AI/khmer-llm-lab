@@ -1,17 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ROADMAP_STEPS } from '../data/khmerResources';
 import { RoadmapStep } from '../types';
 import { RoadmapChecklist } from './RoadmapChecklist';
 import { RoadmapGanttChart } from './RoadmapGanttChart';
+import {
+  PhaseMilestoneAchievements,
+  PHASE_MILESTONE_GROUPS,
+  PHASE_MILESTONE_STORAGE_KEY
+} from './PhaseMilestoneAchievements';
 import { Copy, Check, Terminal, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+
+const DEFAULT_ACHIEVED_MILESTONES = [
+  'ms-01-dataset-ready',
+  'ms-01-dedup-verified',
+  'ms-02-tokenizer-trained'
+];
 
 export const EngineeringRoadmap: React.FC = () => {
   const { isKm, tr } = useLanguage();
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
   const [copied, setCopied] = useState<boolean>(false);
+  const [achievedMilestoneIds, setAchievedMilestoneIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(PHASE_MILESTONE_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return new Set(parsed);
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return new Set(DEFAULT_ACHIEVED_MILESTONES);
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        PHASE_MILESTONE_STORAGE_KEY,
+        JSON.stringify(Array.from(achievedMilestoneIds))
+      );
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [achievedMilestoneIds]);
 
   const activeStep: RoadmapStep = ROADMAP_STEPS[activeStepIndex];
+
+  const handleToggleMilestone = (id: string) => {
+    setAchievedMilestoneIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleCompleteActivePhase = () => {
+    const group = PHASE_MILESTONE_GROUPS[activeStepIndex];
+    if (!group) return;
+    setAchievedMilestoneIds((prev) => {
+      const next = new Set(prev);
+      group.milestones.forEach((m) => next.add(m.id));
+      return next;
+    });
+  };
+
+  const handleResetAllMilestones = () => {
+    setAchievedMilestoneIds(new Set());
+  };
 
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -44,6 +106,13 @@ export const EngineeringRoadmap: React.FC = () => {
         {ROADMAP_STEPS.map((step, idx) => {
           const isActive = idx === activeStepIndex;
           const displayTitle = isKm ? (step.titleKm || step.title) : step.title;
+          const group = PHASE_MILESTONE_GROUPS[idx];
+          const doneCount = group
+            ? group.milestones.filter((m) => achievedMilestoneIds.has(m.id)).length
+            : 0;
+          const totalCount = group ? group.milestones.length : 4;
+          const pct = Math.round((doneCount / totalCount) * 100);
+
           return (
             <button
               key={step.stepNumber}
@@ -54,8 +123,9 @@ export const EngineeringRoadmap: React.FC = () => {
                   : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-900 hover:border-slate-700'
               }`}
             >
-              <div className={`text-[10px] font-mono uppercase mb-1 ${isActive ? 'text-slate-900 font-bold' : 'text-amber-400'}`}>
-                {tr('STAGE', 'ដំណាក់កាលទី')} {step.stepNumber}
+              <div className={`flex items-center justify-between text-[10px] font-mono uppercase mb-1 ${isActive ? 'text-slate-900 font-bold' : 'text-amber-400'}`}>
+                <span>{tr('STAGE', 'ដំណាក់កាលទី')} {step.stepNumber}</span>
+                <span className="tabular-nums">{doneCount}/{totalCount}</span>
               </div>
               <div className="text-xs font-semibold line-clamp-1">
                 {displayTitle}
@@ -63,10 +133,32 @@ export const EngineeringRoadmap: React.FC = () => {
               <div className={`text-[11px] font-khmer line-clamp-1 mt-0.5 ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>
                 {step.subtitleKhmer}
               </div>
+              <div className={`h-1 w-full rounded-full mt-2 overflow-hidden ${isActive ? 'bg-slate-950/20' : 'bg-slate-800'}`}>
+                <div
+                  style={{ width: `${pct}%` }}
+                  className={`h-full transition-all duration-300 ${
+                    isActive
+                      ? 'bg-slate-950'
+                      : pct === 100
+                      ? 'bg-emerald-400'
+                      : 'bg-amber-400'
+                  }`}
+                />
+              </div>
             </button>
           );
         })}
       </div>
+
+      {/* Phase Milestone Achievements Checklist & Progress Visualizers */}
+      <PhaseMilestoneAchievements
+        activeStageIndex={activeStepIndex}
+        onSelectStage={(idx) => setActiveStepIndex(idx)}
+        achievedIds={achievedMilestoneIds}
+        onToggleMilestone={handleToggleMilestone}
+        onCompleteActivePhase={handleCompleteActivePhase}
+        onResetAll={handleResetAllMilestones}
+      />
 
       {/* Estimated Phase Timelines Gantt Visualization */}
       <RoadmapGanttChart

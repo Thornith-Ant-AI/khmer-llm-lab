@@ -7,8 +7,13 @@ import {
 } from '../utils/khmerLinguistics';
 import { TokenDistributionChart } from './TokenDistributionChart';
 import { RegisterHeatmapChart } from './RegisterHeatmapChart';
+import { SyllableEfficiencyChart } from './SyllableEfficiencyChart';
+import { TokenToCharRatioChart } from './TokenToCharRatioChart';
 import { TokenizerSplitView } from './TokenizerSplitView';
+import { TokenizerSandbox } from './TokenizerSandbox';
+import { TokenizerComparison } from './TokenizerComparison';
 import { VocabSuggestionHelper } from './VocabSuggestionHelper';
+import { KhmerSyntaxHighlighter } from './KhmerSyntaxHighlighter';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
   AlertTriangle,
@@ -18,13 +23,17 @@ import {
   BarChart2,
   Grid3x3,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Activity,
+  TrendingDown,
+  FlaskConical,
+  Scale
 } from 'lucide-react';
 
 export const TokenizerLab: React.FC = () => {
   const { language, isKm, tr } = useLanguage();
   const [inputText, setInputText] = useState<string>(SAMPLE_KHMER_PHRASES[0].text);
-  const [viewMode, setViewMode] = useState<'split' | 'vocab_helper' | 'distribution' | 'heatmap' | 'all'>('split');
+  const [viewMode, setViewMode] = useState<'split' | 'comparison' | 'sandbox' | 'vocab_helper' | 'distribution' | 'heatmap' | 'syllable_efficiency' | 'token_char_ratio' | 'all'>('split');
 
   const result = compareTokenizers(inputText);
   const orthography = analyzeOrthography(inputText, language);
@@ -98,6 +107,9 @@ export const TokenizerLab: React.FC = () => {
           className="w-full p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-white font-khmer text-base focus:outline-none focus:border-amber-400 transition-colors leading-relaxed"
         />
       </div>
+
+      {/* Real-Time Khmer Orthographic Syntax Highlighter */}
+      <KhmerSyntaxHighlighter text={inputText} />
 
       {/* Real-time Comparative Metrics Deck */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -188,7 +200,7 @@ export const TokenizerLab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-800">
           <button
             onClick={() => setViewMode('split')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
               viewMode === 'split'
                 ? 'bg-amber-400 text-slate-950 shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -196,6 +208,30 @@ export const TokenizerLab: React.FC = () => {
           >
             <Columns2 className="w-3.5 h-3.5" />
             <span>{tr('Split View Mode', 'ទិដ្ឋភាពប្រៀបធៀបទ្វេ')}</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('comparison')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
+              viewMode === 'comparison'
+                ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span>{tr('Tokenizer Comparison', 'ប្រៀបធៀប GPT-4 / LLaMA-3')}</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('sandbox')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
+              viewMode === 'sandbox'
+                ? 'bg-emerald-400 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            <span>{tr('Tokenizer Sandbox', 'ប្រអប់សាកល្បង Tokenizer')}</span>
           </button>
 
           <button
@@ -240,8 +276,32 @@ export const TokenizerLab: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setViewMode('syllable_efficiency')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
+              viewMode === 'syllable_efficiency'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>{tr('Syllable Efficiency (Recharts)', 'ប្រសិទ្ធភាពព្យាង្គ (Recharts)')}</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('token_char_ratio')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
+              viewMode === 'token_char_ratio'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <TrendingDown className="w-3.5 h-3.5" />
+            <span>{tr('Token/Char Ratio (Recharts)', 'សមាមាត្រថូខិន/តួអក្សរ')}</span>
+          </button>
+
+          <button
             onClick={() => setViewMode('all')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
               viewMode === 'all'
                 ? 'bg-amber-400 text-slate-950 shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -254,9 +314,13 @@ export const TokenizerLab: React.FC = () => {
 
         <div className={`text-xs text-slate-500 font-mono ${isKm ? 'font-khmer' : ''}`}>
           {viewMode === 'split' && tr('Interactive dual-model token mapping with byte-level hover tracking', 'ការផ្គូផ្គងថូខិនម៉ូដែលទាំងពីរជាមួយការតាមដានកម្រិតបៃ')}
+          {viewMode === 'comparison' && tr('Multi-tokenizer benchmark: Custom Khmer SentencePiece vs GPT-4 & LLaMA-3', 'ការវាស់ស្ទង់ប្រៀបធៀប Khmer SentencePiece ធៀបនឹង GPT-4 និង LLaMA-3')}
+          {viewMode === 'sandbox' && tr('Interactive SentencePiece subword fragmentation & live compression diagnostics', 'ប្រអប់សាកល្បងបំបែកអនុពាក្យ SentencePiece និងការវាយតម្លៃសមាមាត្របង្រួមផ្ទាល់')}
           {viewMode === 'vocab_helper' && tr('Recommends high-impact Coeng ligatures and subword additions to SentencePiece', 'ណែនាំជើងព្យញ្ជនៈ និងបំណែកពាក្យសំខាន់ៗសម្រាប់បន្ថែមក្នុង SentencePiece')}
           {viewMode === 'distribution' && tr('D3.js token granularity and subword compression spectrum', 'វិសាលគមទំហំថូខិន និងការបង្រួមបំណែកពាក្យតាម D3.js')}
           {viewMode === 'heatmap' && tr('Linguistic register compression across vocab configurations', 'ការបង្រួមកម្រិតភាសាខ្មែរឆ្លងកាត់ទំហំវាក្យសព្ទផ្សេងៗ')}
+          {viewMode === 'syllable_efficiency' && tr('Character-to-syllable mapping efficiency & cluster complexity across Khmer samples', 'ប្រសិទ្ធភាពបំប្លែងតួអក្សរទៅជាព្យាង្គ និងភាពស្មុគស្មាញចង្កោមឆ្លងកាត់អត្ថបទគំរូ')}
+          {viewMode === 'token_char_ratio' && tr('Tracks tokens-per-character ratio across live text clauses and corpus segments', 'តាមដានសមាមាត្រថូខិនធៀបនឹងតួអក្សរឆ្លងកាត់កង់ឃ្លា និងប្រភេទអត្ថបទ')}
           {viewMode === 'all' && tr('Comprehensive diagnostic suite', 'ឈុតវិភាគគ្រប់ជ្រុងជ្រោយ')}
         </div>
       </div>
@@ -264,6 +328,19 @@ export const TokenizerLab: React.FC = () => {
       {/* 1. Synchronized Tokenizer Split View */}
       {(viewMode === 'split' || viewMode === 'all') && (
         <TokenizerSplitView inputText={inputText} />
+      )}
+
+      {/* 1a. Multi-Tokenizer Comparison (Custom Khmer SentencePiece vs GPT-4 & LLaMA-3) */}
+      {(viewMode === 'comparison' || viewMode === 'all') && (
+        <TokenizerComparison
+          inputText={inputText}
+          onSelectSampleText={(text) => setInputText(text)}
+        />
+      )}
+
+      {/* 1b. Interactive SentencePiece Subword Sandbox */}
+      {(viewMode === 'sandbox' || viewMode === 'all') && (
+        <TokenizerSandbox externalText={inputText} />
       )}
 
       {/* 2. Khmer Vocabulary Suggestion Helper Component */}
@@ -279,6 +356,22 @@ export const TokenizerLab: React.FC = () => {
       {/* 4. D3 Linguistic Register Compression Heatmap & Vocab Size Optimizer */}
       {(viewMode === 'heatmap' || viewMode === 'all') && (
         <RegisterHeatmapChart onSelectSampleText={(text) => setInputText(text)} />
+      )}
+
+      {/* 5. Recharts Character-to-Syllable Mapping Efficiency Visualization */}
+      {(viewMode === 'syllable_efficiency' || viewMode === 'all') && (
+        <SyllableEfficiencyChart
+          activeText={inputText}
+          onSelectSampleText={(text) => setInputText(text)}
+        />
+      )}
+
+      {/* 6. Recharts Token-to-Character Ratio Tracker Across Segments */}
+      {(viewMode === 'token_char_ratio' || viewMode === 'all') && (
+        <TokenToCharRatioChart
+          activeText={inputText}
+          onSelectSampleText={(text) => setInputText(text)}
+        />
       )}
 
       {/* Syllable Clustering & Orthography Validator */}

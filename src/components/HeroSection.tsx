@@ -1,12 +1,13 @@
 import React from 'react';
-import { ArrowRight, Database, Cpu, Layers, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Database, Cpu, Layers, ShieldCheck, Share2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface HeroSectionProps {
   onNavigate: (tabId: string) => void;
+  onShare?: () => void;
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
+export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onShare }) => {
   const { tr } = useLanguage();
 
   return (
@@ -63,6 +64,17 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
               >
                 <span>{tr('Calculate GPU Compute', 'គណនាថាមពល GPU')}</span>
               </button>
+
+              {onShare && (
+                <button
+                  type="button"
+                  onClick={onShare}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>{tr('Share Preview Card', 'មើលកាតចែករំលែក')}</span>
+                </button>
+              )}
             </div>
           </div>
 

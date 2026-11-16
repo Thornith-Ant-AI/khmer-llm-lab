@@ -84,6 +84,7 @@ export interface TokenizerComparisonResult {
 }
 
 export type PricingModel = 'on_demand' | 'spot' | 'reserved_1yr';
+export type ComputePrecision = 'fp16' | 'bf16' | 'int8';
 
 export interface CloudInstance {
   id: string;
@@ -113,6 +114,9 @@ export interface CostProjectionBreakdown {
   totalAccelerators: number;
   trainingHours: number;
   trainingDays: number;
+  totalGpuHours: number;
+  tokensPerSecond: number;
+  tokensPerSecondPerGpu: number;
   hourlyClusterCost: number;
   computeCostUSD: number;
   storageAndEgressUSD: number;
@@ -148,6 +152,7 @@ export interface ScalingConfig {
   gpuCount: number;
   mfuEstimate: number; // Model FLOPs Utilization, e.g. 0.38
   pricingModel?: PricingModel;
+  precision?: ComputePrecision;
   instanceCount?: number;
   storageOverheadPercent?: number;
   regionId?: string;

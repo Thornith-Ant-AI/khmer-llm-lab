@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { CLOUD_INSTANCES, computeScaling } from '../utils/scalingCalculator';
-import { ScalingConfig, PricingModel } from '../types';
+import {
+  CLOUD_INSTANCES,
+  PRECISION_PROFILES,
+  computeScaling,
+  getPrecisionMultiplier
+} from '../utils/scalingCalculator';
+import { ComputePrecision, ScalingConfig, PricingModel } from '../types';
 import { GpuMonitoringDashboard } from './GpuMonitoringDashboard';
 import { GpuArchitectureComparison } from './GpuArchitectureComparison';
+import { HardwareBenchmarkAnalysis } from './HardwareBenchmarkAnalysis';
+import { HardwareBenchmark } from './HardwareBenchmark';
 import { CloudCostEstimator } from './CloudCostEstimator';
 import {
   Cpu,
@@ -18,7 +25,9 @@ import {
   AlertTriangle,
   X,
   RotateCcw,
-  Activity
+  Activity,
+  Gauge,
+  TrendingUp
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -40,13 +49,16 @@ export const ScalingCalculator: React.FC = () => {
     gpuCount: 16,
     mfuEstimate: 0.38,
     pricingModel: 'on_demand',
+    precision: 'bf16',
     storageOverheadPercent: 6,
     regionId: 'gcp_us_central1'
   });
 
   // Toast notification state
   const [toast, setToast] = useState<ToastNotice | null>(null);
-  const [viewMode, setViewMode] = useState<'all' | 'monitoring' | 'cost_projection' | 'gpu_benchmarks'>('all');
+  const [viewMode, setViewMode] = useState<
+    'all' | 'hardware_benchmark' | 'monitoring' | 'cost_projection' | 'gpu_benchmarks' | 'hardware_analysis'
+  >('all');
 
   // Validation errors map
   const validation = useMemo(() => {
@@ -92,7 +104,12 @@ export const ScalingCalculator: React.FC = () => {
       const D = config.targetTokensB * 1e9;
       const totalFlops = 6 * N * D;
       const inst = CLOUD_INSTANCES[config.gpuType] || CLOUD_INSTANCES.gcp_tpu_v4_16;
-      const effectiveTflops = inst.fp16Bf16Tflops * Math.max(1, Math.round(config.gpuCount / inst.acceleratorCount)) * config.mfuEstimate;
+      const precMult = getPrecisionMultiplier(inst, config.precision || 'bf16');
+      const effectiveTflops =
+        inst.fp16Bf16Tflops *
+        precMult *
+        Math.max(1, Math.round(config.gpuCount / inst.acceleratorCount)) *
+        config.mfuEstimate;
       const hours = totalFlops / (effectiveTflops * 1e12 * 3600);
 
       if (hours < 0.2) {
@@ -155,6 +172,7 @@ export const ScalingCalculator: React.FC = () => {
       gpuCount: 16,
       mfuEstimate: 0.38,
       pricingModel: 'on_demand',
+      precision: 'bf16',
       storageOverheadPercent: 6,
       regionId: 'gcp_us_central1'
     });
@@ -203,6 +221,28 @@ export const ScalingCalculator: React.FC = () => {
   const output = computeScaling(safeConfig);
   const selectedInstance = output.activeInstance;
   const costBreakdown = output.selectedCostBreakdown;
+  const activePrecision: ComputePrecision = config.precision || 'bf16';
+  const activePrecisionProfile = PRECISION_PROFILES[activePrecision];
+
+  // Side-by-side precision comparison for the active cluster configuration
+  const precisionComparison = useMemo(() => {
+    const order: ComputePrecision[] = ['fp16', 'bf16', 'int8'];
+    return order.map((prec) => {
+      const res = computeScaling({ ...safeConfig, precision: prec });
+      return {
+        precision: prec,
+        profile: PRECISION_PROFILES[prec],
+        multiplier: res.precisionMultiplier,
+        totalGpuHours: res.totalGpuHours,
+        trainingHours: res.trainingHours,
+        tokensPerSecond: res.tokensPerSecond,
+        tokensPerSecondPerGpu: res.tokensPerSecondPerGpu,
+        effectiveTflops: res.totalClusterTflops,
+        vramPerGpu: res.memoryPerGpuGB.totalPerGpuFsdp,
+        totalCostUSD: res.estimatedCostUSD
+      };
+    });
+  }, [safeConfig]);
 
   const pricingModels: { id: PricingModel; label: string; desc: string }[] = [
     {
@@ -311,8 +351,20 @@ export const ScalingCalculator: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setViewMode('hardware_benchmark')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
+              viewMode === 'hardware_benchmark'
+                ? 'bg-emerald-400 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Server className="w-3.5 h-3.5" />
+            <span>{tr('Hardware Benchmark (A100/H100)', 'ស្តង់ដារផ្នែករឹង (A100/H100)')}</span>
+          </button>
+
+          <button
             onClick={() => setViewMode('gpu_benchmarks')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
               viewMode === 'gpu_benchmarks'
                 ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -324,8 +376,20 @@ export const ScalingCalculator: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setViewMode('hardware_analysis')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
+              viewMode === 'hardware_analysis'
+                ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>{tr('Hardware Benchmark Analysis', 'វិភាគសមត្ថភាពផ្នែករឹង')}</span>
+          </button>
+
+          <button
             onClick={() => setViewMode('monitoring')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
               viewMode === 'monitoring'
                 ? 'bg-emerald-400 text-slate-950 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -338,7 +402,7 @@ export const ScalingCalculator: React.FC = () => {
 
           <button
             onClick={() => setViewMode('cost_projection')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
               viewMode === 'cost_projection'
                 ? 'bg-cyan-400 text-slate-950 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -350,7 +414,9 @@ export const ScalingCalculator: React.FC = () => {
         </div>
 
         <div className="text-xs text-slate-500 font-mono">
+          {viewMode === 'hardware_benchmark' && tr('Recommends A100/H100 GPU clusters aligned to model scale and calculated training duration', 'ណែនាំចង្កោម GPU A100/H100 សមស្របតាមទំហំម៉ូដែល និងរយៈពេលបង្វឹកដែលបានគណនា')}
           {viewMode === 'gpu_benchmarks' && tr('Performance benchmarks across H100 vs A100 vs TPU v4 across 0.5B to 13B scales', 'ការវាស់ស្ទង់សមត្ថភាព H100 ធៀប A100 ធៀប TPU v4 ពីទំហំ 0.5B ដល់ 13B')}
+          {viewMode === 'hardware_analysis' && tr('Historical GPU utilization efficiency across transformer architectures & compute budget optimizer', 'ប្រសិទ្ធភាពប្រើប្រាស់ GPU ប្រវត្តិសាស្ត្រតាមស្ថាបត្យកម្ម Transformer និងការជ្រើសរើសផ្នែករឹងតាមថវិកា')}
           {viewMode === 'monitoring' && tr('Simulates live thermals, VRAM high-water marks, and tensor core TFLOPS', 'ក្លែងធ្វើសីតុណ្ហភាពផ្ទាល់ កម្រិត VRAM និង TFLOPS នៃស្នូល Tensor')}
           {viewMode === 'cost_projection' && tr('Evaluates cloud instance pricing and Chinchilla optimal compute', 'វាយតម្លៃតម្លៃម៉ាស៊ីនពពក និងការគណនាល្អបំផុតតាម Chinchilla')}
           {viewMode === 'all' && tr('End-to-end HPC pretraining telemetry & financial planner', 'ប្រព័ន្ធតាមដានការបង្វឹក HPC និងផែនការហិរញ្ញវត្ថុពេញលេញ')}
@@ -532,6 +598,130 @@ export const ScalingCalculator: React.FC = () => {
         </div>
       </div>
 
+      {/* Compute Precision (FP16 / BF16 / INT8) & Cluster Scale Bar */}
+      <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/60 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Precision Toggle */}
+          <div className="space-y-2 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className={`text-xs font-semibold text-slate-300 flex items-center gap-1.5 ${isKm ? 'font-khmer' : ''}`}>
+                <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                <span>{tr('Numerical Precision Mode (FP16 / BF16 / INT8):', 'របៀបភាពជាក់លាក់គណនា (FP16 / BF16 / INT8)៖')}</span>
+              </label>
+              <span className="text-[11px] font-mono text-amber-300 tabular-nums">
+                {activePrecisionProfile.label} · {output.precisionMultiplier.toFixed(2)}× {tr('Compute Throughput', 'ល្បឿនគណនា')}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-950 border border-slate-800">
+              {(['fp16', 'bf16', 'int8'] as ComputePrecision[]).map((prec) => {
+                const profile = PRECISION_PROFILES[prec];
+                const isSelected = activePrecision === prec;
+                return (
+                  <button
+                    key={prec}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setConfig({ ...config, precision: prec })}
+                    className={`py-2 px-3 rounded-lg text-xs font-mono transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${
+                      isSelected
+                        ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    <span>{profile.label}</span>
+                    <span
+                      className={`text-[10px] tabular-nums ${
+                        isSelected ? 'text-slate-900' : 'text-slate-500'
+                      }`}
+                    >
+                      {getPrecisionMultiplier(selectedInstance, prec).toFixed(2)}×
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className={`text-[11px] text-slate-400 ${isKm ? 'font-khmer' : ''}`}>
+              {isKm ? activePrecisionProfile.summaryKm : activePrecisionProfile.summary}
+            </p>
+          </div>
+
+          {/* Cluster Accelerator Count Switcher */}
+          <div className="space-y-2 lg:w-80 shrink-0">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+              <span className={isKm ? 'font-khmer' : ''}>
+                {tr('Cluster Accelerator Count:', 'ចំនួនឈីប/GPU ក្នុងចង្កោម៖')}
+              </span>
+              <span className="font-mono text-cyan-400 tabular-nums">
+                {costBreakdown.totalAccelerators}× ({costBreakdown.instanceCount} {tr('nodes', 'ណូដ')})
+              </span>
+            </div>
+            <div className="grid grid-cols-5 gap-1 p-1 rounded-xl bg-slate-950 border border-slate-800">
+              {[8, 16, 32, 64, 128].map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  onClick={() => setConfig({ ...config, gpuCount: count })}
+                  className={`py-2 rounded-lg text-xs font-mono tabular-nums transition-colors ${
+                    config.gpuCount === count
+                      ? 'bg-cyan-400 text-slate-950 font-bold'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                  }`}
+                >
+                  {count}×
+                </button>
+              ))}
+            </div>
+            <p className={`text-[11px] text-slate-500 ${isKm ? 'font-khmer' : ''}`}>
+              {tr('Scales all cluster configurations & VRAM sharding simultaneously.', 'គណនាឡើងវិញលើចង្កោមទាំងអស់ និងការបែងចែក VRAM ព្រមគ្នា។')}
+            </p>
+          </div>
+        </div>
+
+        {/* FP16 vs BF16 vs INT8 Live Comparison Strip */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-800/80">
+          {precisionComparison.map((row) => {
+            const isSelected = row.precision === activePrecision;
+            return (
+              <button
+                key={row.precision}
+                type="button"
+                onClick={() => setConfig({ ...config, precision: row.precision })}
+                className={`p-3 rounded-xl border text-left transition-colors space-y-1.5 ${
+                  isSelected
+                    ? 'border-amber-400/60 bg-amber-400/10'
+                    : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className={`font-bold ${isSelected ? 'text-amber-300' : 'text-white'}`}>
+                    {row.profile.label}
+                  </span>
+                  <span className="text-[11px] text-slate-400 tabular-nums">
+                    {row.effectiveTflops.toLocaleString()} eff. TFLOPS
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono tabular-nums">
+                  <div>
+                    <div className="text-slate-500">{tr('Total GPU Hours', 'ម៉ោង GPU សរុប')}</div>
+                    <div className="text-white font-semibold">
+                      {row.totalGpuHours.toLocaleString()} {tr('GPU-hrs', 'ម៉ោង-GPU')}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-slate-500">{tr('Throughput', 'ល្បឿនបង្វឹក')}</div>
+                    <div className="text-emerald-400 font-semibold">
+                      {(row.tokensPerSecond / 1000).toFixed(1)}k tok/s
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Validation Alert Warning Callout Banner if Invalid */}
       {!validation.isValid && (
         <div className="p-4 rounded-xl border border-rose-800/80 bg-rose-950/40 text-rose-200 flex items-start justify-between gap-4">
@@ -600,40 +790,63 @@ export const ScalingCalculator: React.FC = () => {
             </div>
           </div>
 
-          {/* Training Duration & Time to Complete */}
+          {/* Training Duration & Total GPU Hours */}
           <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
             <div className="flex items-center justify-between text-xs font-mono text-emerald-400">
               <span className="flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5" />
-                <span>{tr('TRAINING DURATION', 'រយៈពេលបង្វឹក')}</span>
+                <span>{tr('TOTAL GPU HOURS', 'ម៉ោង GPU សរុប')}</span>
               </span>
-              <span className="text-slate-500">{output.totalFlopsFormatted.split(' ')[0]} {output.totalFlopsFormatted.split(' ')[1]}</span>
+              <span className="text-amber-300 font-bold">{activePrecisionProfile.label}</span>
             </div>
             <div className="text-3xl font-bold font-mono text-emerald-400 tabular-nums">
-              {costBreakdown.trainingDays}
-              <span className="text-sm font-normal text-emerald-400/80"> {tr('Days', 'ថ្ងៃ')}</span>
+              {output.totalGpuHours.toLocaleString()}
+              <span className="text-sm font-normal text-emerald-400/80"> {tr('GPU-hrs', 'ម៉ោង')}</span>
             </div>
-            <div className="text-[11px] text-slate-400 font-mono">
-              {isKm ? `${costBreakdown.trainingHours} ម៉ោងបង្វឹកបន្តបន្ទាប់` : `${costBreakdown.trainingHours} continuous training hours`}
+            <div className="text-[11px] text-slate-400 font-mono tabular-nums">
+              {isKm
+                ? `${costBreakdown.trainingDays} ថ្ងៃ (${costBreakdown.trainingHours} ម៉ោងលើ ${costBreakdown.totalAccelerators} ឈីប)`
+                : `${costBreakdown.trainingDays} days (${costBreakdown.trainingHours}h wall-clock)`}
             </div>
           </div>
 
-          {/* Unit Cost Efficiency ($/1B Tokens) */}
+          {/* Training Throughput & Unit Cost Efficiency */}
           <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
             <div className="flex items-center justify-between text-xs font-mono text-violet-400">
               <span className="flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" />
-                <span>{tr('UNIT COST / 1B TOKENS', 'តម្លៃក្នុង / 1B ថូខិន')}</span>
+                <span>{tr('CLUSTER THROUGHPUT', 'ល្បឿនបង្វឹកចង្កោម')}</span>
+              </span>
+              <span className="text-slate-500 tabular-nums">
+                ${costBreakdown.costPerBillionTokensUSD.toFixed(0)}/1B tok
               </span>
             </div>
             <div className="text-3xl font-bold font-mono text-white tabular-nums">
-              ${costBreakdown.costPerBillionTokensUSD.toFixed(2)}
+              {(output.tokensPerSecond / 1000).toFixed(1)}k
+              <span className="text-sm font-normal text-slate-400"> tok/s</span>
             </div>
-            <div className="text-[11px] text-slate-400 font-mono">
-              ${costBreakdown.costPerMillionParamsUSD.toFixed(3)} / {tr('1M model parameters', '1M ប៉ារ៉ាម៉ែត្រម៉ូដែល')}
+            <div className="text-[11px] text-slate-400 font-mono tabular-nums">
+              {output.tokensPerSecondPerGpu.toLocaleString()} {tr('tok/s per GPU', 'ថូខិន/វិនាទី/GPU')} · {output.totalClusterTflops.toLocaleString()} TFLOPS
             </div>
           </div>
         </div>
+      )}
+
+      {/* A100 & H100 GPU Cluster Recommendation Hardware Benchmark */}
+      {(viewMode === 'all' || viewMode === 'hardware_benchmark') && (
+        <HardwareBenchmark
+          modelParamsB={safeConfig.modelParamsB}
+          targetTokensB={safeConfig.targetTokensB}
+          seqLength={safeConfig.seqLength}
+          precision={activePrecision}
+          pricingModel={config.pricingModel || 'on_demand'}
+          currentGpuType={config.gpuType}
+          currentGpuCount={config.gpuCount}
+          calculatedTrainingHours={costBreakdown.trainingHours}
+          calculatedTrainingDays={costBreakdown.trainingDays}
+          calculatedCostUSD={costBreakdown.totalCostUSD}
+          onApplyCluster={handleApplyPreset}
+        />
       )}
 
       {/* GPU Architecture Benchmarks Comparison Table (H100 vs A100 vs TPU v4 across Model Scales) */}
@@ -642,6 +855,16 @@ export const ScalingCalculator: React.FC = () => {
           currentParamsB={config.modelParamsB}
           currentTargetTokensB={config.targetTokensB}
           onApplyPreset={handleApplyPreset}
+        />
+      )}
+
+      {/* Historical Hardware Utilization & Compute Budget Optimizer */}
+      {(viewMode === 'all' || viewMode === 'hardware_analysis') && (
+        <HardwareBenchmarkAnalysis
+          modelParamsB={config.modelParamsB}
+          currentGpuType={config.gpuType}
+          currentProjectedCostUSD={costBreakdown.totalCostUSD}
+          onApplyHardware={handleApplyPreset}
         />
       )}
 
@@ -708,10 +931,10 @@ export const ScalingCalculator: React.FC = () => {
               <tr>
                 <th className="py-3 px-4">{tr('Provider / Instance', 'ក្រុមហ៊ុន / ម៉ាស៊ីន')}</th>
                 <th className="py-3 px-4">{tr('Accelerators', 'ឧបករណ៍បង្កើនល្បឿន')}</th>
+                <th className="py-3 px-4 text-right">{tr('Throughput', 'ល្បឿន')} ({activePrecisionProfile.label})</th>
+                <th className="py-3 px-4 text-right">{tr('Total GPU Hours', 'ម៉ោង GPU សរុប')}</th>
                 <th className="py-3 px-4">{tr('Duration', 'រយៈពេល')}</th>
-                <th className="py-3 px-4">{tr('Hourly Rate', 'អត្រាម៉ោង')}</th>
                 <th className="py-3 px-4 text-emerald-400">{tr('Spot Cost', 'តម្លៃ Spot')}</th>
-                <th className="py-3 px-4 text-cyan-400">{tr('1-Yr Reserved', 'កក់ 1 ឆ្នាំ')}</th>
                 <th className="py-3 px-4 text-amber-400 font-bold">{tr('On-Demand Cost', 'តម្លៃតាមតម្រូវការ')}</th>
                 <th className="py-3 px-4 text-right">{tr('Action', 'សកម្មភាព')}</th>
               </tr>
@@ -721,7 +944,6 @@ export const ScalingCalculator: React.FC = () => {
                 const isSelected = p.instanceId === config.gpuType;
                 const inst = CLOUD_INSTANCES[p.instanceId];
                 const spotCost = Math.round(p.trainingHours * (inst.spotHourlyUSD * p.instanceCount) * (1 + (config.storageOverheadPercent || 6) / 100));
-                const reservedCost = Math.round(p.trainingHours * (inst.reserved1yrHourlyUSD * p.instanceCount) * (1 + (config.storageOverheadPercent || 6) / 100));
                 const onDemandCost = Math.round(p.trainingHours * (inst.onDemandHourlyUSD * p.instanceCount) * (1 + (config.storageOverheadPercent || 6) / 100));
 
                 return (
@@ -735,31 +957,31 @@ export const ScalingCalculator: React.FC = () => {
                     }`}
                   >
                     <td className="py-3.5 px-4">
-                      <div className="font-semibold text-white flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full ${
-                          p.provider === 'GCP' ? 'bg-blue-400' : p.provider === 'AWS' ? 'bg-amber-400' : 'bg-violet-400'
-                        }`} />
-                        <span>{isKm ? (inst.nameKm || p.name) : p.name}</span>
+                      <div className="font-semibold text-white">
+                        {isKm ? (inst.nameKm || p.name) : p.name}
                       </div>
                       <div className="text-[10px] text-slate-400 font-sans mt-0.5">
                         {isKm ? (inst.interconnectKm || inst.interconnect) : inst.interconnect}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-300">
+                    <td className="py-3.5 px-4 text-slate-300 tabular-nums">
                       {p.totalAccelerators}x {tr('chips/GPUs', 'ឈីប/GPU')}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 text-right text-cyan-300 font-semibold tabular-nums whitespace-nowrap">
+                      {(p.tokensPerSecond / 1000).toFixed(1)}k tok/s
+                      <div className="text-[10px] font-normal text-slate-400">
+                        {p.tokensPerSecondPerGpu.toLocaleString()} tok/s/GPU
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-emerald-300 font-semibold tabular-nums whitespace-nowrap">
+                      {p.totalGpuHours.toLocaleString()} h
+                    </td>
+                    <td className="py-3.5 px-4 tabular-nums">
                       <span className="font-bold text-white">{p.trainingDays}</span>
                       <span className="text-slate-400"> {tr('days', 'ថ្ងៃ')} ({p.trainingHours}{tr('h', 'ម៉ោង')})</span>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-400">
-                      ${p.hourlyClusterCost}{tr('/hr', '/ម៉ោង')}
-                    </td>
                     <td className="py-3.5 px-4 text-emerald-400 font-semibold tabular-nums">
                       ${spotCost.toLocaleString()}
-                    </td>
-                    <td className="py-3.5 px-4 text-cyan-400 tabular-nums">
-                      ${reservedCost.toLocaleString()}
                     </td>
                     <td className="py-3.5 px-4 text-amber-300 font-bold tabular-nums">
                       ${onDemandCost.toLocaleString()}
@@ -770,7 +992,7 @@ export const ScalingCalculator: React.FC = () => {
                           e.stopPropagation();
                           setConfig({ ...config, gpuType: p.instanceId });
                         }}
-                        className={`px-2.5 py-1 text-[11px] rounded transition-colors ${
+                        className={`px-2.5 py-1 text-[11px] rounded transition-colors whitespace-nowrap ${
                           isSelected
                             ? 'bg-amber-400 text-slate-950 font-bold'
                             : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
@@ -850,8 +1072,13 @@ export const ScalingCalculator: React.FC = () => {
           <div className="space-y-2.5">
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-slate-300">
-                <span>{tr('Model Weights (BF16, sharded)', 'ទម្ងន់ម៉ូដែល (BF16, ចែករំលែក)')}</span>
-                <span className="font-mono text-slate-400">{output.memoryPerGpuGB.weights} GB</span>
+                <span>
+                  {tr(
+                    `Model Weights (${activePrecisionProfile.label}, sharded)`,
+                    `ទម្ងន់ម៉ូដែល (${activePrecisionProfile.label}, ចែករំលែក)`
+                  )}
+                </span>
+                <span className="font-mono text-slate-400 tabular-nums">{output.memoryPerGpuGB.weights} GB</span>
               </div>
               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                 <div style={{ width: `${Math.min(100, (output.memoryPerGpuGB.weights / (selectedInstance.vramTotalGB / selectedInstance.acceleratorCount)) * 100)}%` }} className="bg-cyan-400 h-full" />
@@ -860,8 +1087,13 @@ export const ScalingCalculator: React.FC = () => {
 
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-slate-300">
-                <span>{tr('Gradients (BF16, sharded)', 'ក្រាដ្យង់ (BF16, ចែករំលែក)')}</span>
-                <span className="font-mono text-slate-400">{output.memoryPerGpuGB.gradients} GB</span>
+                <span>
+                  {tr(
+                    `Gradients (${activePrecisionProfile.label}, sharded)`,
+                    `ក្រាដ្យង់ (${activePrecisionProfile.label}, ចែករំលែក)`
+                  )}
+                </span>
+                <span className="font-mono text-slate-400 tabular-nums">{output.memoryPerGpuGB.gradients} GB</span>
               </div>
               <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                 <div style={{ width: `${Math.min(100, (output.memoryPerGpuGB.gradients / (selectedInstance.vramTotalGB / selectedInstance.acceleratorCount)) * 100)}%` }} className="bg-emerald-400 h-full" />

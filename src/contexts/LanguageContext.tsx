@@ -17,6 +17,11 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(undefine
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const urlLang = params.get('lang');
+      if (urlLang === 'km' || urlLang === 'en') {
+        return urlLang;
+      }
       const saved = localStorage.getItem(STORAGE_KEY);
       return saved === 'km' ? 'km' : 'en';
     } catch {
@@ -47,10 +52,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     document.documentElement.lang = language === 'km' ? 'km' : 'en';
-    document.title =
-      language === 'km'
-        ? 'មន្ទីរពិសោធន៍វិស្វកម្ម Khmer LLM — ស្ទូឌីយោបង្វឹកភាសាខ្មែរ'
-        : 'Khmer LLM Lab — Language Engineering & Pretraining Studio';
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('lang') !== language) {
+        url.searchParams.set('lang', language);
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    } catch {
+      // Ignore history API errors in sandboxed iframes
+    }
   }, [language]);
 
   const tr = useCallback(

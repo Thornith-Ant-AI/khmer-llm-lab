@@ -1,11 +1,18 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
+import fs from 'fs';
+import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
+import {
+  KHMER_LLM_SEO_SECTIONS,
+  resolveSeoCopy,
+  type SeoLanguage,
+} from './src/data/seoMetadata.ts';
 
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', true);
 app.use(express.json());
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -28,6 +35,180 @@ app.get('/api/health', (req, res) => {
     hasGeminiKey: Boolean(apiKey),
     timestamp: new Date().toISOString()
   });
+});
+
+function resolveSiteBaseUrl(req: express.Request): string {
+  const forwardedHost = req.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const host = forwardedHost || req.get('host');
+  const proto = req.get('x-forwarded-proto')?.split(',')[0]?.trim() || req.protocol || 'https';
+
+  if (host && !host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
+    return `${proto}://${host}`;
+  }
+
+  const envUrl = process.env.APP_URL?.trim().replace(/\/+$/, '');
+  if (envUrl) return envUrl;
+
+  return host ? `${proto}://${host}` : '';
+}
+
+const SEO_SECTION_IDS = Object.keys(KHMER_LLM_SEO_SECTIONS);
+
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function isHtmlPageOrCrawlerRequest(req: express.Request): boolean {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+  if (req.path.startsWith('/api') || req.path === '/robots.txt' || req.path === '/sitemap.xml') {
+    return false;
+  }
+  if (req.path.startsWith('/@') || req.path.startsWith('/src/') || req.path.startsWith('/node_modules/')) {
+    return false;
+  }
+  const hasFileExt = /\.[a-zA-Z0-9]{1,8}$/.test(req.path) && req.path !== '/index.html';
+  if (hasFileExt) return false;
+
+  const accept = req.headers.accept || '';
+  const ua = req.get('user-agent') || '';
+  const isSocialOrSearchBot =
+    /facebookexternalhit|facebot|linkedinbot|telegrambot|twitterbot|whatsapp|slackbot|discordbot|pinterest|vkshare|googlebot|bingbot|applebot|embedly|quora|outbrain|crawler|spider|bot/i.test(
+      ua
+    );
+  return req.path === '/' || req.path === '/index.html' || accept.includes('text/html') || isSocialOrSearchBot;
+}
+
+function injectSocialMetaTags(html: string, req: express.Request): string {
+  const baseUrl = resolveSiteBaseUrl(req);
+  const langParam: SeoLanguage = req.query.lang === 'km' ? 'km' : 'en';
+  const sectionParam = typeof req.query.section === 'string' ? req.query.section : null;
+
+  const seo = resolveSeoCopy(langParam, sectionParam);
+  const querySection = seo.resolvedSectionId
+    ? `section=${encodeURIComponent(seo.resolvedSectionId)}`
+    : '';
+
+  const canonicalUrl = querySection
+    ? `${baseUrl}/?${querySection}&lang=${langParam}`
+    : langParam === 'km'
+      ? `${baseUrl}/?lang=km`
+      : `${baseUrl}/`;
+
+  const enUrl = querySection ? `${baseUrl}/?${querySection}&lang=en` : `${baseUrl}/?lang=en`;
+  const kmUrl = querySection ? `${baseUrl}/?${querySection}&lang=km` : `${baseUrl}/?lang=km`;
+  const xDefaultUrl = querySection ? `${baseUrl}/?${querySection}` : `${baseUrl}/`;
+  const ogImageUrl = baseUrl ? `${baseUrl}/og-khmer-llm.jpg` : '/og-khmer-llm.jpg';
+
+  const safeTitle = escapeHtmlAttr(seo.title);
+  const safeDesc = escapeHtmlAttr(seo.description);
+  const safeKeywords = escapeHtmlAttr(seo.keywords);
+  const safeSiteName = escapeHtmlAttr(seo.siteName);
+  const safeImageAlt = escapeHtmlAttr(seo.imageAlt);
+  const safeOgImage = escapeHtmlAttr(ogImageUrl);
+  const safeCanonical = escapeHtmlAttr(canonicalUrl);
+  const ogLocale = langParam === 'km' ? 'km_KH' : 'en_US';
+  const ogAltLocale = langParam === 'km' ? 'en_US' : 'km_KH';
+
+  const socialBlock = `<!-- SSR_SOCIAL_META_START -->
+    <link rel="canonical" href="${safeCanonical}" />
+    <link rel="alternate" hreflang="en" href="${escapeHtmlAttr(enUrl)}" />
+    <link rel="alternate" hreflang="km" href="${escapeHtmlAttr(kmUrl)}" />
+    <link rel="alternate" hreflang="x-default" href="${escapeHtmlAttr(xDefaultUrl)}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="${safeSiteName}" />
+    <meta property="og:title" content="${safeTitle}" />
+    <meta property="og:description" content="${safeDesc}" />
+    <meta property="og:url" content="${safeCanonical}" />
+    <meta property="og:image" content="${safeOgImage}" />
+    <meta property="og:image:secure_url" content="${safeOgImage}" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="${safeImageAlt}" />
+    <meta property="og:locale" content="${ogLocale}" />
+    <meta property="og:locale:alternate" content="${ogAltLocale}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${safeTitle}" />
+    <meta name="twitter:description" content="${safeDesc}" />
+    <meta name="twitter:image" content="${safeOgImage}" />
+    <meta name="twitter:image:alt" content="${safeImageAlt}" />
+    <!-- SSR_SOCIAL_META_END -->`;
+
+  let out = html
+    .replace(/<html\s+lang="[^"]*">/, `<html lang="${langParam}">`)
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${safeTitle}</title>`)
+    .replace(
+      /<meta\s+name="description"\s+content="[\s\S]*?"\s*\/>/,
+      `<meta name="description" content="${safeDesc}" />`
+    )
+    .replace(
+      /<meta\s+name="keywords"\s+content="[\s\S]*?"\s*\/>/,
+      `<meta name="keywords" content="${safeKeywords}" />`
+    );
+
+  if (out.includes('<!-- SSR_SOCIAL_META_START -->') && out.includes('<!-- SSR_SOCIAL_META_END -->')) {
+    out = out.replace(
+      /<!-- SSR_SOCIAL_META_START -->[\s\S]*?<!-- SSR_SOCIAL_META_END -->/,
+      socialBlock
+    );
+  }
+
+  return out;
+}
+
+app.get('/robots.txt', (req, res) => {
+  const baseUrl = resolveSiteBaseUrl(req);
+  res.type('text/plain');
+  res.send(`User-agent: *\nAllow: /\n\nSitemap: ${baseUrl}/sitemap.xml\n`);
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const baseUrl = resolveSiteBaseUrl(req);
+  const rootEntry = `  <url>
+    <loc>${baseUrl}/?lang=en</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="${baseUrl}/?lang=en" />
+    <xhtml:link rel="alternate" hreflang="km" href="${baseUrl}/?lang=km" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${baseUrl}/" />
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/?lang=km</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="${baseUrl}/?lang=en" />
+    <xhtml:link rel="alternate" hreflang="km" href="${baseUrl}/?lang=km" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${baseUrl}/" />
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>`;
+
+  const sectionEntries = SEO_SECTION_IDS.map(
+    (id) => `  <url>
+    <loc>${baseUrl}/?section=${id}&amp;lang=en</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="${baseUrl}/?section=${id}&amp;lang=en" />
+    <xhtml:link rel="alternate" hreflang="km" href="${baseUrl}/?section=${id}&amp;lang=km" />
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/?section=${id}&amp;lang=km</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="${baseUrl}/?section=${id}&amp;lang=en" />
+    <xhtml:link rel="alternate" hreflang="km" href="${baseUrl}/?section=${id}&amp;lang=km" />
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>`
+  ).join('\n');
+
+  res.type('application/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+${rootEntry}
+${sectionEntries}
+</urlset>`);
 });
 
 // Heuristic fallback report when Gemini API key is missing or unavailable
@@ -353,24 +534,97 @@ app.post('/api/contact', (req, res) => {
   res.status(201).json({ success: true, submission });
 });
 
+// Researcher LinkedIn photo proxy with 12-hour in-memory cache and website fallback
+let cachedResearcherPhoto: { buffer: Buffer; contentType: string; fetchedAt: number } | null = null;
+const PHOTO_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+app.get('/api/researcher-photo', async (_req, res) => {
+  if (cachedResearcherPhoto && Date.now() - cachedResearcherPhoto.fetchedAt < PHOTO_CACHE_TTL_MS) {
+    res.setHeader('Content-Type', cachedResearcherPhoto.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.send(cachedResearcherPhoto.buffer);
+  }
+
+  const candidateUrls = [
+    'https://unavatar.io/linkedin/thornithhuon?fallback=false',
+    'https://thornith.com/images/bg_1.png'
+  ];
+
+  for (const photoUrl of candidateUrls) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const upstream = await fetch(photoUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; KhmerLLMLab/1.0)'
+        }
+      });
+      clearTimeout(timeoutId);
+
+      const contentType = upstream.headers.get('content-type') || '';
+      if (upstream.ok && contentType.startsWith('image/')) {
+        const arrayBuf = await upstream.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        if (buffer.length > 512) {
+          cachedResearcherPhoto = { buffer, contentType, fetchedAt: Date.now() };
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+          return res.send(buffer);
+        }
+      }
+    } catch {
+      // Try next candidate URL
+    }
+  }
+
+  return res.status(404).json({ error: 'Researcher photo unavailable' });
+});
+
 async function startServer() {
-  const port = process.env.PORT || 3000;
-  
+  const port = Number(process.env.PORT) || 3000;
+  const host = process.env.HOST || '0.0.0.0';
+
   if (process.env.NODE_ENV === 'production') {
-    app.use(express.static('dist'));
-    app.get('*', (req, res) => {
-      res.sendFile('index.html', { root: 'dist' });
+    const distDir = path.resolve(import.meta.dirname, 'dist');
+    const distHtmlPath = path.join(distDir, 'index.html');
+    app.use(express.static(distDir, { index: false }));
+    app.get('*', (req, res, next) => {
+      if (!isHtmlPageOrCrawlerRequest(req)) return next();
+      try {
+        const template = fs.readFileSync(distHtmlPath, 'utf-8');
+        const html = injectSocialMetaTags(template, req);
+        res.status(200).set({ 'Content-Type': 'text/html' }).send(html);
+      } catch (err) {
+        next(err);
+      }
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
+
+    app.use(async (req, res, next) => {
+      if (!isHtmlPageOrCrawlerRequest(req)) return next();
+      try {
+        const templatePath = path.resolve(import.meta.dirname, 'index.html');
+        let template = fs.readFileSync(templatePath, 'utf-8');
+        template = await vite.transformIndexHtml(req.originalUrl, template);
+        const html = injectSocialMetaTags(template, req);
+        res.status(200).set({ 'Content-Type': 'text/html' }).send(html);
+      } catch (err) {
+        vite.ssrFixStacktrace(err as Error);
+        next(err);
+      }
+    });
+
     app.use(vite.middlewares);
   }
 
-  app.listen(port, () => {
-    console.log(`Khmer LLM Architect server running on http://localhost:${port}`);
+  app.listen(port, host, () => {
+    console.log(`Khmer LLM Architect server running on http://${host}:${port}`);
   });
 }
 

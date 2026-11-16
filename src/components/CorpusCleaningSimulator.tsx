@@ -5,6 +5,8 @@ import {
   LineAssessment
 } from '../utils/khmerLinguistics';
 import { useLanguage } from '../contexts/LanguageContext';
+import { CorpusDistributionComparison } from './CorpusDistributionComparison';
+import { DatasetValidator } from './DatasetValidator';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -166,21 +168,36 @@ export const CorpusCleaningSimulator: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-wider font-mono">
-          <span>{tr('CORPUS HYGIENE WORKBENCH', 'តុប្រតិបត្តិការសម្អាតឃ្លាំងទិន្នន័យ')}</span>
-          <span aria-hidden="true" className="text-slate-600">·</span>
-          <span>{tr('NOISE & BOILERPLATE AUDITOR', 'កម្មវិធីសវនកម្មសំឡេងរំខាន និងទម្រង់ដដែលៗ')}</span>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-wider font-mono">
+            <span>{tr('CORPUS HYGIENE WORKBENCH', 'តុប្រតិបត្តិការសម្អាតឃ្លាំងទិន្នន័យ')}</span>
+            <span aria-hidden="true" className="text-slate-600">·</span>
+            <span>{tr('NOISE & BOILERPLATE AUDITOR', 'កម្មវិធីសវនកម្មសំឡេងរំខាន និងទម្រង់ដដែលៗ')}</span>
+          </div>
+          <h2 className={`text-2xl sm:text-3xl font-bold text-white tracking-tight ${isKm ? 'font-khmer leading-relaxed' : ''}`}>
+            {tr('Corpus Cleaning & Quality Estimator', 'កម្មវិធីសម្អាតឃ្លាំងទិន្នន័យ និងប៉ាន់ស្មានគុណភាព')}
+          </h2>
+          <p className={`text-sm text-slate-300 max-w-3xl leading-relaxed ${isKm ? 'font-khmer' : ''}`}>
+            {tr(
+              'Estimate the percentage of high-quality vs low-quality Khmer text based on URL density, navigational boilerplate, legacy Limon ASCII fonts, and repetition before ingesting into pretraining datasets.',
+              'ប៉ាន់ស្មានភាគរយនៃអត្ថបទខ្មែរគុណភាពខ្ពស់ធៀបនឹងគុណភាពទាប ដោយផ្អែកលើដង់ស៊ីតេតំណ URL ម៉ឺនុយរុករកគេហទំព័រ ពុម្ពអក្សរ Limon ASCII ចាស់ និងភាពដដែលៗ មុនពេលបញ្ចូលទៅក្នុងទិន្នន័យបង្វឹកដំបូង។'
+            )}
+          </p>
         </div>
-        <h2 className={`text-2xl sm:text-3xl font-bold text-white tracking-tight ${isKm ? 'font-khmer leading-relaxed' : ''}`}>
-          {tr('Corpus Cleaning & Quality Estimator', 'កម្មវិធីសម្អាតឃ្លាំងទិន្នន័យ និងប៉ាន់ស្មានគុណភាព')}
-        </h2>
-        <p className={`text-sm text-slate-300 max-w-3xl leading-relaxed ${isKm ? 'font-khmer' : ''}`}>
-          {tr(
-            'Estimate the percentage of high-quality vs low-quality Khmer text based on URL density, navigational boilerplate, legacy Limon ASCII fonts, and repetition before ingesting into pretraining datasets.',
-            'ប៉ាន់ស្មានភាគរយនៃអត្ថបទខ្មែរគុណភាពខ្ពស់ធៀបនឹងគុណភាពទាប ដោយផ្អែកលើដង់ស៊ីតេតំណ URL ម៉ឺនុយរុករកគេហទំព័រ ពុម្ពអក្សរ Limon ASCII ចាស់ និងភាពដដែលៗ មុនពេលបញ្ចូលទៅក្នុងទិន្នន័យបង្វឹកដំបូង។'
-          )}
-        </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            document.getElementById('dataset-validator')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-400/15 text-amber-300 border border-amber-400/40 hover:bg-amber-400 hover:text-slate-950 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 self-start md:self-auto ${
+            isKm ? 'font-khmer' : 'font-mono'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+          <span>{tr('Rule-Based Dataset Validator', 'កម្មវិធីផ្ទៀងផ្ទាត់ទិន្នន័យ')}</span>
+        </button>
       </div>
 
       {/* Preset Realistic Crawler Samples */}
@@ -607,6 +624,27 @@ export const CorpusCleaningSimulator: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Post-Cleaning Diversity & Language Distribution vs. Gold Standard */}
+      <CorpusDistributionComparison
+        rawText={inputText}
+        report={report}
+        onResetFilters={() =>
+          setThresholds({
+            maxUrlDensity: 15,
+            boilerplateSensitivity: 'relaxed',
+            minKhmerRatio: 30,
+            minLineLength: 10
+          })
+        }
+        onLoadBalancedSample={() => setInputText(RICH_CORPUS_SAMPLES[0].text)}
+      />
+
+      {/* Rule-Based Khmer Dataset Snippet Validator & Cleanliness Score */}
+      <DatasetValidator
+        externalText={inputText}
+        onApplySanitized={(cleanText) => setInputText(cleanText)}
+      />
     </div>
   );
 };

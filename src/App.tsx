@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { applyBilingualSeo, KHMER_LLM_SEO_SECTIONS } from './utils/seo';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { DataPrioritizationMatrix } from './components/DataPrioritizationMatrix';
@@ -11,14 +12,41 @@ import { KhmerRegisterGuide } from './components/KhmerRegisterGuide';
 import { SyntheticDataStudio } from './components/SyntheticDataStudio';
 import { ResearchLibrary } from './components/ResearchLibrary';
 import { TrainingDynamics } from './components/TrainingDynamics';
+import { KhmerModelsDirectory } from './components/KhmerModelsDirectory';
+import { KhmerNlpGlossary } from './components/KhmerNlpGlossary';
 import { ContactForm } from './components/ContactForm';
 import { ExportModal } from './components/ExportModal';
-import { Database, Cpu, Layers, Sparkles, Terminal, FileText, CheckCircle2, BookOpen, Activity, Mail } from 'lucide-react';
+import { SharePreviewModal } from './components/SharePreviewModal';
+import { Database, Cpu, Layers, Sparkles, Terminal, FileText, CheckCircle2, BookOpen, BookMarked, Activity, GitBranch, Mail } from 'lucide-react';
 
 function AppContent() {
-  const { tr } = useLanguage();
-  const [activeTab, setActiveTab] = useState<string>('data-matrix');
+  const { language, tr } = useLanguage();
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try {
+      const section = new URLSearchParams(window.location.search).get('section');
+      if (section && KHMER_LLM_SEO_SECTIONS[section]) {
+        return section;
+      }
+    } catch {
+      // Ignore search params errors
+    }
+    return 'data-matrix';
+  });
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
+  const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('section') !== activeTab) {
+        url.searchParams.set('section', activeTab);
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    } catch {
+      // Ignore history API errors
+    }
+    applyBilingualSeo(language, activeTab);
+  }, [language, activeTab]);
 
   const tabs = [
     { id: 'data-matrix', label: tr('1. Data Matrix (What to Prioritize)', '១. ម៉ាទ្រីសទិន្នន័យ (អាទិភាពទិន្នន័យ)'), icon: Database },
@@ -29,8 +57,10 @@ function AppContent() {
     { id: 'registers', label: tr('6. Linguistic Registers', '៦. កម្រិតភាសាខ្មែរ'), icon: Sparkles },
     { id: 'synthetic', label: tr('7. Synthetic SFT Studio', '៧. ស្ទូឌីយោទិន្នន័យសំយោគ SFT'), icon: CheckCircle2 },
     { id: 'research-library', label: tr('8. Research Library', '៨. បណ្ណាល័យស្រាវជ្រាវ'), icon: BookOpen },
-    { id: 'training-dynamics', label: tr('9. Training Dynamics', '៩. ថាមវន្តនៃការបង្វឹក'), icon: Activity },
-    { id: 'contact', label: tr('10. Contact', '១០. ទំនាក់ទំនង'), icon: Mail },
+    { id: 'models-directory', label: tr('9. Khmer LLMs & Git Repos', '៩. ម៉ូដែល LLM និង Git'), icon: GitBranch },
+    { id: 'training-dynamics', label: tr('10. Training Dynamics', '១០. ថាមវន្តនៃការបង្វឹក'), icon: Activity },
+    { id: 'nlp-glossary', label: tr('11. Khmer NLP Glossary', '១១. សទ្ទានុក្រម Khmer NLP'), icon: BookMarked },
+    { id: 'contact', label: tr('12. Contact', '១២. ទំនាក់ទំនង'), icon: Mail },
   ];
 
   return (
@@ -40,10 +70,14 @@ function AppContent() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onExport={() => setIsExportOpen(true)}
+        onShare={() => setIsShareOpen(true)}
       />
 
       {/* Hero Visual & Architectural Overview */}
-      <HeroSection onNavigate={(tabId) => setActiveTab(tabId)} />
+      <HeroSection
+        onNavigate={(tabId) => setActiveTab(tabId)}
+        onShare={() => setIsShareOpen(true)}
+      />
 
       {/* Main Interactive Workbench Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8 space-y-8">
@@ -81,29 +115,39 @@ function AppContent() {
           {activeTab === 'registers' && <KhmerRegisterGuide />}
           {activeTab === 'synthetic' && <SyntheticDataStudio />}
           {activeTab === 'research-library' && <ResearchLibrary />}
+          {activeTab === 'models-directory' && <KhmerModelsDirectory />}
           {activeTab === 'training-dynamics' && <TrainingDynamics />}
+          {activeTab === 'nlp-glossary' && (
+            <KhmerNlpGlossary onNavigate={(tabId) => setActiveTab(tabId)} />
+          )}
           {activeTab === 'contact' && <ContactForm />}
         </div>
       </main>
 
       {/* Technical Footer */}
       <footer className="mt-16 border-t border-slate-800/80 bg-slate-950 py-8 px-6 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
             <span className="font-semibold text-slate-400">
               {tr('Khmer LLM Pretraining Lab', 'មន្ទីរពិសោធន៍បង្វឹក Khmer LLM')}
             </span>
-            <span>·</span>
+            <span aria-hidden="true">·</span>
             <span>
               {tr('Open Research & Engineering Specification', 'លក្ខណៈបច្ចេកទេសវិស្វកម្ម និងការស្រាវជ្រាវបើកចំហ')}
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-[11px]">
+          <div className="text-center text-xs text-slate-300 font-medium">
+            {tr('Powered by', 'ដំណើរការដោយ')}{' '}
+            <span className="font-semibold text-amber-400">Khmer LLM Lab</span>{' '}
+            <span className="text-slate-400">© 2026</span>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center lg:justify-end gap-3 text-[11px]">
             <span>{tr('Royal Academy of Cambodia Standards', 'ស្តង់ដាររាជបណ្ឌិត្យសភាកម្ពុជា')}</span>
-            <span>·</span>
+            <span aria-hidden="true">·</span>
             <span>{tr('Unicode Consortium TR31 Compliant', 'អនុលោមតាម Unicode Consortium TR31')}</span>
-            <span>·</span>
+            <span aria-hidden="true">·</span>
             <span>SentencePiece 32k BPE</span>
           </div>
         </div>
@@ -113,6 +157,13 @@ function AppContent() {
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
+      />
+
+      {/* Social Media Share & Featured Home Screen Preview Modal */}
+      <SharePreviewModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        activeTab={activeTab}
       />
     </div>
   );

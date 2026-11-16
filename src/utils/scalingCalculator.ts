@@ -1,4 +1,4 @@
-import { CloudInstance, CloudRegion, CostProjectionBreakdown, PricingModel, ScalingConfig } from '../types';
+import { CloudInstance, CloudRegion, ComputePrecision, CostProjectionBreakdown, PricingModel, ScalingConfig } from '../types';
 
 export const CLOUD_REGIONS: Record<string, CloudRegion> = {
   gcp_us_central1: {
@@ -285,11 +285,79 @@ export const CLOUD_INSTANCES: Record<string, CloudInstance> = {
   }
 };
 
+export interface PrecisionProfile {
+  id: ComputePrecision;
+  label: string;
+  fullName: string;
+  fullNameKm: string;
+  bytesPerWeight: number;
+  activationMemoryFactor: number;
+  baseThroughputMultiplier: number;
+  nextGenInt8Multiplier: number; // H100 / TPU v5e / Trainium
+  summary: string;
+  summaryKm: string;
+}
+
+export const PRECISION_PROFILES: Record<ComputePrecision, PrecisionProfile> = {
+  fp16: {
+    id: 'fp16',
+    label: 'FP16',
+    fullName: 'IEEE Float16 + GradScaler',
+    fullNameKm: 'IEEE Float16 + GradScaler',
+    bytesPerWeight: 2,
+    activationMemoryFactor: 1.0,
+    baseThroughputMultiplier: 0.94,
+    nextGenInt8Multiplier: 0.94,
+    summary: '5-bit exponent requires dynamic loss scaling; ~6% throughput overhead from occasional step retries.',
+    summaryKm: 'ត្រូវការ Dynamic Loss Scaling ដោយសារ Exponent ៥ ប៊ីត — កាត់បន្ថយល្បឿនប្រហែល ~៦% ដោយសារការផ្ទៀងផ្ទាត់ Overflow។'
+  },
+  bf16: {
+    id: 'bf16',
+    label: 'BF16',
+    fullName: 'Bfloat16 Mixed Precision (Baseline)',
+    fullNameKm: 'Bfloat16 Mixed Precision (ស្តង់ដារគោល)',
+    bytesPerWeight: 2,
+    activationMemoryFactor: 1.0,
+    baseThroughputMultiplier: 1.0,
+    nextGenInt8Multiplier: 1.0,
+    summary: 'Gold standard for LLM pretraining: FP32 dynamic range with native Tensor Core speed and zero loss-scaling.',
+    summaryKm: 'ស្តង់ដារគោលសម្រាប់បង្វឹក LLM៖ រក្សាជួរតម្លៃ FP32 ជាមួយល្បឿន Tensor Core ពេញលេញ និងគ្មានការលោត Overflow។'
+  },
+  int8: {
+    id: 'int8',
+    label: 'INT8',
+    fullName: 'INT8 / FP8 Quantized MatMul (QAT)',
+    fullNameKm: 'INT8 / FP8 Quantized MatMul (QAT)',
+    bytesPerWeight: 1,
+    activationMemoryFactor: 0.65,
+    baseThroughputMultiplier: 1.6,
+    nextGenInt8Multiplier: 1.78,
+    summary: 'Quantized GEMMs boost Tensor Core throughput 1.6×–1.78× and cut activation/weight footprint; requires QAT or FP8 scaling.',
+    summaryKm: 'បង្កើនល្បឿន Tensor Core បាន 1.6×–1.78× និងកាត់បន្ថយអង្គចងចាំទម្ងន់ពាក់កណ្តាល (ទាមទារ QAT ឬ FP8 Scaling)។'
+  }
+};
+
+export function getPrecisionMultiplier(instance: CloudInstance, precision: ComputePrecision): number {
+  const profile = PRECISION_PROFILES[precision] || PRECISION_PROFILES.bf16;
+  if (precision !== 'int8') {
+    return profile.baseThroughputMultiplier;
+  }
+  const isNextGenEngine =
+    instance.id.includes('h100') ||
+    instance.id.includes('v5e') ||
+    instance.id.includes('trn1');
+  return isNextGenEngine ? profile.nextGenInt8Multiplier : profile.baseThroughputMultiplier;
+}
+
 export interface ScalingOutput {
   totalFlops: number; // in floating point operations
   totalFlopsFormatted: string;
+  precision: ComputePrecision;
+  precisionMultiplier: number;
   effectiveTflopsPerGpu: number;
   totalClusterTflops: number;
+  tokensPerSecond: number;
+  tokensPerSecondPerGpu: number;
   trainingHours: number;
   trainingDays: number;
   totalGpuHours: number;
@@ -321,16 +389,22 @@ export function projectCloudCost(
   modelParamsB: number,
   mfu: number,
   pricingModel: PricingModel,
-  storageOverheadPercent: number = 6
+  storageOverheadPercent: number = 6,
+  precision: ComputePrecision = 'bf16'
 ): CostProjectionBreakdown {
   const totalAccelerators = instance.acceleratorCount * instanceCount;
-  const clusterPeakTflops = instance.fp16Bf16Tflops * instanceCount;
+  const precisionMultiplier = getPrecisionMultiplier(instance, precision);
+  const clusterPeakTflops = instance.fp16Bf16Tflops * instanceCount * precisionMultiplier;
   const effectiveTflops = clusterPeakTflops * mfu;
 
   // Total seconds needed = totalFlops / (effectiveTflops * 10^12)
   const totalSeconds = totalFlops / (effectiveTflops * 1e12);
   const trainingHours = Math.max(0.1, Number((totalSeconds / 3600).toFixed(1)));
   const trainingDays = Math.max(0.01, Number((trainingHours / 24).toFixed(1)));
+  const totalGpuHours = Math.round(trainingHours * totalAccelerators);
+  const tokensPerSecond = totalSeconds > 0 ? Math.round((targetTokensB * 1e9) / totalSeconds) : 0;
+  const tokensPerSecondPerGpu =
+    totalAccelerators > 0 ? Math.round(tokensPerSecond / totalAccelerators) : 0;
 
   // Determine hourly instance cost based on pricing model
   let hourlyRatePerInstance = instance.onDemandHourlyUSD;
@@ -348,7 +422,7 @@ export function projectCloudCost(
   const costPerBillionTokensUSD = targetTokensB > 0 ? Number((totalCostUSD / targetTokensB).toFixed(2)) : 0;
   const costPerMillionParamsUSD = modelParamsB > 0 ? Number((totalCostUSD / (modelParamsB * 1000)).toFixed(2)) : 0;
 
-  // Approximate energy: ~700W per modern accelerator + host overhead (~1kW per accelerator equivalent)
+  // Approximate energy: ~700W per modern accelerator + host overhead (~0.9kW per accelerator equivalent)
   const energyKWh = Math.round(trainingHours * totalAccelerators * 0.9);
   // Average US/Global grid emission factor ~0.385 kg CO2e / kWh
   const carbonTonsCO2 = Number(((energyKWh * 0.385) / 1000).toFixed(2));
@@ -362,6 +436,9 @@ export function projectCloudCost(
     totalAccelerators,
     trainingHours,
     trainingDays,
+    totalGpuHours,
+    tokensPerSecond,
+    tokensPerSecondPerGpu,
     hourlyClusterCost,
     computeCostUSD,
     storageAndEgressUSD,
@@ -382,11 +459,13 @@ export function computeScaling(config: ScalingConfig): ScalingOutput {
     gpuCount,
     mfuEstimate,
     pricingModel = 'on_demand',
-    instanceCount = 1,
+    precision = 'bf16',
     storageOverheadPercent = 6
   } = config;
 
   const activeInstance = CLOUD_INSTANCES[gpuType] || CLOUD_INSTANCES.gcp_a3_h100;
+  const precisionProfile = PRECISION_PROFILES[precision] || PRECISION_PROFILES.bf16;
+  const precisionMultiplier = getPrecisionMultiplier(activeInstance, precision);
 
   const N = modelParamsB * 1e9; // Parameters
   const D = targetTokensB * 1e9; // Tokens
@@ -409,9 +488,7 @@ export function computeScaling(config: ScalingConfig): ScalingOutput {
   const overtrainingRatio = Number((targetTokensB / chinchillaOptimalTokensB).toFixed(2));
 
   // Compute all cloud instance cost projections
-  const costProjections: CostProjectionBreakdown[] = Object.values(CLOUD_INSTANCES).map(inst => {
-    // Determine instance count to match roughly the user's desired accelerator count
-    // or use the specified instanceCount
+  const costProjections: CostProjectionBreakdown[] = Object.values(CLOUD_INSTANCES).map((inst) => {
     const effectiveInstances = Math.max(1, Math.round(gpuCount / inst.acceleratorCount));
     return projectCloudCost(
       inst,
@@ -421,7 +498,8 @@ export function computeScaling(config: ScalingConfig): ScalingOutput {
       modelParamsB,
       mfuEstimate,
       pricingModel,
-      storageOverheadPercent
+      storageOverheadPercent,
+      precision
     );
   });
 
@@ -433,17 +511,20 @@ export function computeScaling(config: ScalingConfig): ScalingOutput {
     modelParamsB,
     mfuEstimate,
     pricingModel,
-    storageOverheadPercent
+    storageOverheadPercent,
+    precision
   );
 
-  // Memory estimation for PyTorch FSDP
-  const totalWeightBytes = 2 * N;
-  const totalGradBytes = 2 * N;
-  const totalOptBytes = 12 * N;
+  // Memory estimation for PyTorch FSDP adjusted by selected precision
+  const totalWeightBytes = precisionProfile.bytesPerWeight * N;
+  const totalGradBytes = precisionProfile.bytesPerWeight * N;
+  const totalOptBytes = 12 * N; // AdamW FP32 master + moments remain FP32
   const totalStateBytes = totalWeightBytes + totalGradBytes + totalOptBytes;
 
-  const shardedStatePerGpu = (totalStateBytes / gpuCount) / (1024 ** 3);
-  const activationsEst = Math.min(16, (config.seqLength / 2048) * (modelParamsB * 1.5));
+  const shardedStatePerGpu = totalStateBytes / gpuCount / 1024 ** 3;
+  const activationsEst =
+    Math.min(16, (config.seqLength / 2048) * (modelParamsB * 1.5)) *
+    precisionProfile.activationMemoryFactor;
   const totalPerGpuFsdp = Number((shardedStatePerGpu + activationsEst).toFixed(1));
 
   let recommendedLearningRate = '3.0e-4';
@@ -461,16 +542,23 @@ export function computeScaling(config: ScalingConfig): ScalingOutput {
   return {
     totalFlops,
     totalFlopsFormatted,
-    effectiveTflopsPerGpu: Math.round((activeInstance.fp16Bf16Tflops / activeInstance.acceleratorCount) * mfuEstimate),
+    precision,
+    precisionMultiplier,
+    effectiveTflopsPerGpu: Math.round(
+      ((activeInstance.fp16Bf16Tflops * precisionMultiplier) / activeInstance.acceleratorCount) *
+        mfuEstimate
+    ),
     totalClusterTflops: selectedCostBreakdown.effectiveTflops,
+    tokensPerSecond: selectedCostBreakdown.tokensPerSecond,
+    tokensPerSecondPerGpu: selectedCostBreakdown.tokensPerSecondPerGpu,
     trainingHours: selectedCostBreakdown.trainingHours,
     trainingDays: selectedCostBreakdown.trainingDays,
-    totalGpuHours: Math.round(selectedCostBreakdown.trainingHours * selectedCostBreakdown.totalAccelerators),
+    totalGpuHours: selectedCostBreakdown.totalGpuHours,
     estimatedCostUSD: selectedCostBreakdown.totalCostUSD,
     memoryPerGpuGB: {
-      weights: Number(((totalWeightBytes / gpuCount) / (1024 ** 3)).toFixed(1)),
-      gradients: Number(((totalGradBytes / gpuCount) / (1024 ** 3)).toFixed(1)),
-      optimizerAdam: Number(((totalOptBytes / gpuCount) / (1024 ** 3)).toFixed(1)),
+      weights: Number((totalWeightBytes / gpuCount / 1024 ** 3).toFixed(1)),
+      gradients: Number((totalGradBytes / gpuCount / 1024 ** 3).toFixed(1)),
+      optimizerAdam: Number((totalOptBytes / gpuCount / 1024 ** 3).toFixed(1)),
       activationsEst: Number(activationsEst.toFixed(1)),
       totalPerGpuFsdp
     },
