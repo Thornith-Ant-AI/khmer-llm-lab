@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { applyBilingualSeo, KHMER_LLM_SEO_SECTIONS } from './utils/seo';
+import {
+  trackWebsiteVisit,
+  trackPageView,
+  trackLanguageSwitch,
+  trackUiAction,
+} from './utils/analytics';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { DataPrioritizationMatrix } from './components/DataPrioritizationMatrix';
@@ -34,6 +40,11 @@ function AppContent() {
   });
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
   const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
+  const prevLanguageRef = useRef(language);
+
+  useEffect(() => {
+    void trackWebsiteVisit(activeTab, language);
+  }, []);
 
   useEffect(() => {
     try {
@@ -46,6 +57,12 @@ function AppContent() {
       // Ignore history API errors
     }
     applyBilingualSeo(language, activeTab);
+    void trackPageView(activeTab, language, document.title);
+
+    if (prevLanguageRef.current !== language) {
+      prevLanguageRef.current = language;
+      void trackLanguageSwitch(language, activeTab);
+    }
   }, [language, activeTab]);
 
   const tabs = [
@@ -69,14 +86,23 @@ function AppContent() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onExport={() => setIsExportOpen(true)}
-        onShare={() => setIsShareOpen(true)}
+        onExport={() => {
+          void trackUiAction('export_blueprint_open', { section: activeTab, language });
+          setIsExportOpen(true);
+        }}
+        onShare={() => {
+          void trackUiAction('share_preview_open', { section: activeTab, language });
+          setIsShareOpen(true);
+        }}
       />
 
       {/* Hero Visual & Architectural Overview */}
       <HeroSection
         onNavigate={(tabId) => setActiveTab(tabId)}
-        onShare={() => setIsShareOpen(true)}
+        onShare={() => {
+          void trackUiAction('share_preview_open', { section: activeTab, language });
+          setIsShareOpen(true);
+        }}
       />
 
       {/* Main Interactive Workbench Container */}

@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 
 import { useLanguage } from '../contexts/LanguageContext';
+import { LossCurvesVisualizer } from './LossCurvesVisualizer';
+import { TrainingHyperparameterAdvisor } from './TrainingHyperparameterAdvisor';
 
 export type CheckpointModelId =
   | 'khmer_1_5b_spm32k'
@@ -382,6 +384,12 @@ export const TrainingDynamics: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Interactive Loss Curves Visualizer (1.5B vs 3B GQA + Upload CSV/JSON) */}
+      <LossCurvesVisualizer />
+
+      {/* Training Hyperparameter Advisor (Batch Size, LR Warmup, Weight Decay for 1.5B vs 3B GQA) */}
+      <TrainingHyperparameterAdvisor selectedCheckpoint={selectedCheckpoint} />
 
       {/* Checkpoint Model Run Selector Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny safety net for all unspecified paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isEmailVerified() && (
+        request.auth.token.email == 'tommatin6@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidWebsiteVisit(data) {
+      return data.keys().hasAll([
+        'visitId',
+        'userId',
+        'section',
+        'language',
+        'pagePath',
+        'referrerHost',
+        'viewportCategory',
+        'visitedAt'
+      ])
+      && data.keys().hasOnly([
+        'visitId',
+        'userId',
+        'section',
+        'language',
+        'pagePath',
+        'referrerHost',
+        'viewportCategory',
+        'visitedAt'
+      ])
+      && isValidId(data.visitId)
+      && isValidId(data.userId)
+      && data.userId == request.auth.uid
+      && data.section is string && data.section.size() >= 1 && data.section.size() <= 64
+      && data.language is string && data.language in ['en', 'km']
+      && data.pagePath is string && data.pagePath.size() >= 1 && data.pagePath.size() <= 256
+      && data.referrerHost is string && data.referrerHost.size() >= 1 && data.referrerHost.size() <= 128
+      && data.viewportCategory is string && data.viewportCategory in ['mobile', 'tablet', 'desktop']
+      && data.visitedAt == request.time;
+    }
+
+    match /website_visits/{visitId} {
+      allow get: if isEmailVerified()
+        && isValidId(visitId)
+        && (existing().userId == request.auth.uid || isAdmin());
+
+      allow list: if isEmailVerified()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isEmailVerified()
+        && isValidId(visitId)
+        && isValidWebsiteVisit(incoming())
+        && incoming().visitId == visitId;
+
+      allow update, delete: if false;
+    }
+  }
+}

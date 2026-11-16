@@ -11,6 +11,7 @@ import { GpuArchitectureComparison } from './GpuArchitectureComparison';
 import { HardwareBenchmarkAnalysis } from './HardwareBenchmarkAnalysis';
 import { HardwareBenchmark } from './HardwareBenchmark';
 import { CloudCostEstimator } from './CloudCostEstimator';
+import { InfrastructureCostEstimator } from './InfrastructureCostEstimator';
 import {
   Cpu,
   DollarSign,
@@ -27,7 +28,8 @@ import {
   RotateCcw,
   Activity,
   Gauge,
-  TrendingUp
+  TrendingUp,
+  Calculator
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -57,7 +59,7 @@ export const ScalingCalculator: React.FC = () => {
   // Toast notification state
   const [toast, setToast] = useState<ToastNotice | null>(null);
   const [viewMode, setViewMode] = useState<
-    'all' | 'hardware_benchmark' | 'monitoring' | 'cost_projection' | 'gpu_benchmarks' | 'hardware_analysis'
+    'all' | 'hardware_benchmark' | 'infra_cost' | 'monitoring' | 'cost_projection' | 'gpu_benchmarks' | 'hardware_analysis'
   >('all');
 
   // Validation errors map
@@ -411,6 +413,18 @@ export const ScalingCalculator: React.FC = () => {
             <DollarSign className="w-3.5 h-3.5" />
             <span>{tr('Cost & Scaling Engine', 'ម៉ាស៊ីនគណនាថ្លៃដើម')}</span>
           </button>
+
+          <button
+            onClick={() => setViewMode('infra_cost')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors whitespace-nowrap shrink-0 ${
+              viewMode === 'infra_cost'
+                ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            <span>{tr('Infrastructure Cost Estimator', 'ប៉ាន់ស្មានថ្លៃហេដ្ឋារចនាសម្ព័ន្ធ')}</span>
+          </button>
         </div>
 
         <div className="text-xs text-slate-500 font-mono">
@@ -419,6 +433,7 @@ export const ScalingCalculator: React.FC = () => {
           {viewMode === 'hardware_analysis' && tr('Historical GPU utilization efficiency across transformer architectures & compute budget optimizer', 'ប្រសិទ្ធភាពប្រើប្រាស់ GPU ប្រវត្តិសាស្ត្រតាមស្ថាបត្យកម្ម Transformer និងការជ្រើសរើសផ្នែករឹងតាមថវិកា')}
           {viewMode === 'monitoring' && tr('Simulates live thermals, VRAM high-water marks, and tensor core TFLOPS', 'ក្លែងធ្វើសីតុណ្ហភាពផ្ទាល់ កម្រិត VRAM និង TFLOPS នៃស្នូល Tensor')}
           {viewMode === 'cost_projection' && tr('Evaluates cloud instance pricing and Chinchilla optimal compute', 'វាយតម្លៃតម្លៃម៉ាស៊ីនពពក និងការគណនាល្អបំផុតតាម Chinchilla')}
+          {viewMode === 'infra_cost' && tr('Calculates hourly & total budgets across 8x–128x H100/A100 cloud clusters from estimated training hours', 'គណនាថវិកាប្រចាំម៉ោង និងសរុបសម្រាប់ចង្កោមពពក H100/A100 ពី 8x ដល់ 128x GPUs')}
           {viewMode === 'all' && tr('End-to-end HPC pretraining telemetry & financial planner', 'ប្រព័ន្ធតាមដានការបង្វឹក HPC និងផែនការហិរញ្ញវត្ថុពេញលេញ')}
         </div>
       </div>
@@ -875,6 +890,20 @@ export const ScalingCalculator: React.FC = () => {
           instance={selectedInstance}
           memoryPerGpuGB={output.memoryPerGpuGB}
           effectiveClusterTflops={output.totalClusterTflops}
+        />
+      )}
+
+      {/* Infrastructure Cost Estimator (8x - 128x H100 & A100 Cloud Cluster Budget Matrix) */}
+      {(viewMode === 'all' || viewMode === 'infra_cost' || viewMode === 'cost_projection') && (
+        <InfrastructureCostEstimator
+          estimatedTrainingHours={costBreakdown.trainingHours}
+          activeGpuCount={config.gpuCount}
+          activeGpuType={config.gpuType}
+          pricingModel={config.pricingModel || 'on_demand'}
+          storageOverheadPercent={config.storageOverheadPercent ?? 6}
+          modelParamsB={safeConfig.modelParamsB}
+          targetTokensB={safeConfig.targetTokensB}
+          onApplyCluster={handleApplyPreset}
         />
       )}
 

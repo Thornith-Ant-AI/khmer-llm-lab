@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "WebsiteVisit": {
+      "title": "WebsiteVisit",
+      "description": "Records verified user visit telemetry and active workbench section engagement.",
+      "type": "object",
+      "properties": {
+        "visitId": {
+          "type": "string",
+          "description": "Unique identifier for the visit record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Authenticated user UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "section": {
+          "type": "string",
+          "description": "Active application workbench section visited.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "language": {
+          "type": "string",
+          "description": "Active interface language code.",
+          "enum": ["en", "km"]
+        },
+        "pagePath": {
+          "type": "string",
+          "description": "Relative URL path and query string visited.",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "referrerHost": {
+          "type": "string",
+          "description": "Sanitized referrer hostname or direct indicator.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "viewportCategory": {
+          "type": "string",
+          "description": "Device viewport bucket.",
+          "enum": ["mobile", "tablet", "desktop"]
+        },
+        "visitedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of when the visit occurred."
+        }
+      },
+      "required": [
+        "visitId",
+        "userId",
+        "section",
+        "language",
+        "pagePath",
+        "referrerHost",
+        "viewportCategory",
+        "visitedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/website_visits/{visitId}": {
+      "schema": {
+        "$ref": "#/entities/WebsiteVisit"
+      },
+      "description": "Immutable visit records authored by verified signed-in users and readable by owners or admins."
+    }
+  }
+}
