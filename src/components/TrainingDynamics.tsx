@@ -29,6 +29,8 @@ import {
 import { useLanguage } from '../contexts/LanguageContext';
 import { LossCurvesVisualizer } from './LossCurvesVisualizer';
 import { TrainingHyperparameterAdvisor } from './TrainingHyperparameterAdvisor';
+import { BatchSizeEfficiencyChart } from './BatchSizeEfficiencyChart';
+import { ComputeResourceEstimator } from './ComputeResourceEstimator';
 
 export type CheckpointModelId =
   | 'khmer_1_5b_spm32k'
@@ -390,6 +392,12 @@ export const TrainingDynamics: React.FC = () => {
 
       {/* Training Hyperparameter Advisor (Batch Size, LR Warmup, Weight Decay for 1.5B vs 3B GQA) */}
       <TrainingHyperparameterAdvisor selectedCheckpoint={selectedCheckpoint} />
+
+      {/* D3 Batch Size Efficiency Visualization (Token Count vs Optimal Micro-Batch Size) */}
+      <BatchSizeEfficiencyChart selectedCheckpoint={selectedCheckpoint} />
+
+      {/* Compute Resource Estimator (TFLOPS/s from Architecture & Duration) */}
+      <ComputeResourceEstimator selectedCheckpoint={selectedCheckpoint} />
 
       {/* Checkpoint Model Run Selector Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

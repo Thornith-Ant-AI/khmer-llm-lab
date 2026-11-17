@@ -4,6 +4,7 @@ import { DatasetTier, KhmerResource } from '../types';
 import { KhmerRagPipelineSimulator } from './KhmerRagPipelineSimulator';
 import { KhmerScriptValidator } from './KhmerScriptValidator';
 import { useLanguage } from '../contexts/LanguageContext';
+import khmerCorpusImg from '../assets/images/khmer_corpus_curation_1794452345081.jpg';
 import {
   ExternalLink,
   CheckCircle2,
@@ -220,7 +221,7 @@ export const DataPrioritizationMatrix: React.FC = () => {
 
         <div className="lg:col-span-5 rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 flex flex-col">
           <img
-            src="/src/assets/images/khmer_corpus_curation_1794452345081.jpg"
+            src={khmerCorpusImg}
             alt={tr('Multi-stage Khmer corpus data processing pipeline visual', 'រូបភាពបង្ហាញដំណាក់កាលដំណើរការឃ្លាំងទិន្នន័យភាសាខ្មែរ')}
             className="w-full h-48 object-cover object-top"
             referrerPolicy="no-referrer"

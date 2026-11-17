@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowRight, Database, Cpu, Layers, ShieldCheck, Share2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import heroKhmerImg from '../assets/images/hero_khmer_llm_1794452344447.jpg';
 
 interface HeroSectionProps {
   onNavigate: (tabId: string) => void;
@@ -82,7 +83,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, onShare })
           <div className="lg:col-span-5">
             <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900/60 shadow-2xl">
               <img
-                src="/src/assets/images/hero_khmer_llm_1794452344447.jpg"
+                src={heroKhmerImg}
                 alt={tr(
                   'Khmer neural architecture showing script glyphs entering transformer attention layers',
                   'ស្ថាបត្យកម្មបណ្តាញសរសៃប្រសាទខ្មែរដែលបង្ហាញតួអក្សរខ្មែរចូលទៅក្នុងស្រទាប់ Transformer Attention'
